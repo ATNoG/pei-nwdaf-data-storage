@@ -1,12 +1,13 @@
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS, WriteApi
 from influxdb_client.client.query_api import QueryApi
-from src.configs.influx import InfluxConf
+from src.configs.influx_conf import InfluxConf
 from src.models.raw import Raw
+from src.services.db_service import DBService
 
-class InfluxService:
+class InfluxService(DBService):
     def __init__(self) -> None:
-        self.conf=      InfluxConf
+        self.conf=      InfluxConf()
         self.client:    InfluxDBClient
         self.write_api: WriteApi
         self.query_api: QueryApi
@@ -27,12 +28,14 @@ class InfluxService:
         #TODO: add query
         return []
 
-    def write_data(self, data:Raw) -> None :
+    def write_data(self, data: dict) -> None :
         """Write a single record"""
-        point = data.to_point()
+        raw = Raw(**data)
+        point = raw.to_point()
         self.write_api.write(bucket=self.conf.bucket, org = self.conf.org ,record = point)
 
-    def write_batch(self, data_list:list[Raw]) -> None :
+    def write_batch(self, data_list:list[dict]) -> None :
         """Write a list of record"""
-        points = [d.to_point() for d in data_list]
+        raw_list = [Raw(**d) for d in data_list]
+        points = [r.to_point() for r in raw_list]
         self.write_api.write(bucket=self.conf.bucket, org = self.conf.org ,record = points)
