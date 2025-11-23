@@ -1,0 +1,6 @@
+fastapi==0.121.3
+influxdb_client==1.49.0
+pydantic==2.12.4
+python-dotenv==1.2.1
+clickhouse-connect==0.7.19
+uvicorn==0.34.0
