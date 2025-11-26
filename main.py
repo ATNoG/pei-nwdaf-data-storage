@@ -7,7 +7,7 @@ from src.sink import KafkaSinkManager
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
-KAFKA_TOPICS = os.getenv("KAFKA_TOPICS", "raw-data,processed-data").split(",")
+KAFKA_TOPICS = ["raw-data"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,18 +18,18 @@ async def lifespan(app: FastAPI):
     # Initialize and start Kafka sink manager
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
 
-    # Run the sink in a background thread since it's blocking
-    sink_task = asyncio.create_task(
-        asyncio.to_thread(sink_manager.start, *KAFKA_TOPICS)
-    )
+    try:
+        await sink_manager.start(*KAFKA_TOPICS)
+    except Exception as e:
+        print(f"Warning: Failed to start Kafka sink: {e}")
+        print("API will continue running without Kafka sink")
 
     yield
 
-    sink_manager.stop()
     try:
-        await asyncio.wait_for(sink_task, timeout=5.0)
-    except asyncio.TimeoutError:
-        pass
+        await sink_manager.stop()
+    except Exception as e:
+        print(f"Warning: Error stopping Kafka sink: {e}")
 
     Influx.service.client.close()
     ClickHouse.service.client.close()
