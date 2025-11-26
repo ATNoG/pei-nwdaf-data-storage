@@ -1,5 +1,5 @@
-from sinks.sinkI import Sink
-from services.influx import InfluxService
+from src.sinks.sinkI import Sink
+from src.services.influx import InfluxService
 class InfluxSink(Sink):
     def __init__(self, logger):
         self.service = InfluxService()

@@ -2,9 +2,9 @@ import asyncio
 import logging
 from typing import Optional
 
-from comms.kmw import PyKafBridge
-from sinks.clickhouse_sink import ClickHouseSink
-from sinks.influx_sink import InfluxSink
+from utils.kmw import PyKafBridge
+from src.sinks.clickhouse_sink import ClickHouseSink
+from src.sinks.influx_sink import InfluxSink
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,7 +25,11 @@ class KafkaSinkManager:
         topic: str = data['topic']
         message: dict = data['content']
         if topic == "raw-data":
-            return self.influx_sink.write(message)
+            raw_data = message.get("data")
+            if not raw_data:
+               return False
+
+            return self.influx_sink.write(raw_data)
         elif topic == "processed-data":
             return self.clickhouse_sink.write(message)
         else:

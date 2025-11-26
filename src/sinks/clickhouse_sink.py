@@ -1,5 +1,5 @@
-from sinks.sinkI import Sink
-from services.clickhouse import ClickHouseService
+from src.sinks.sinkI import Sink
+from src.services.clickhouse import ClickHouseService
 
 class ClickHouseSink(Sink):
     def __init__(self,logger):
