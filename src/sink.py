@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from communs.kmw import PyKafBridge
+from comms.kmw import PyKafBridge
 from sinks.clickhouse_sink import ClickHouseSink
 from sinks.influx_sink import InfluxSink
 
@@ -21,7 +21,9 @@ class KafkaSinkManager:
         self.bridge: Optional[PyKafBridge] = None
         self._running = False
 
-    def route_message(self, topic: str, message: dict) -> bool:
+    def route_message(self, data: dict) -> bool:
+        topic: str = data['topic']
+        message: dict = data['content']
         if topic == "raw-data":
             return self.influx_sink.write(message)
         elif topic == "processed-data":
@@ -30,38 +32,16 @@ class KafkaSinkManager:
             logger.warning(f"Unknown topic: {topic}")
             return False
 
-    async def process_kafka_messages(self):
-        if not self.bridge or not self.bridge.consumer:
-            logger.error("Kafka bridge not initialized")
-            return
-
-        loop = asyncio.get_event_loop()
-
-        try:
-            while self._running:
-                messages = await loop.run_in_executor(
-                    None, self.bridge.consumer.poll, 1000
-                )
-
-                # process message
-
-                await asyncio.sleep(0)
-
-        except asyncio.CancelledError:
-            logger.info("Kafka sink consumer task cancelled")
-
     def start(self, *topics):
-        self.bridge = PyKafBridge(self.kafka_host, self.kafka_port, *topics)
-        self._running = True
+        self.bridge = PyKafBridge(*topics, hostname=self.kafka_host, port=self.kafka_port)
 
         logger.info(f"Starting Kafka Sink Manager for topics: {topics}")
 
-        self.bridge.consumer = self.bridge.consumer or self.bridge.start()
+        for topic in topics:
+            self.bridge.bind_topic(topic, self.route_message)
 
-        asyncio.run(self.process_kafka_messages())
+        self.bridge.start()
 
     def stop(self):
-        self._running = False
-        if self.bridge:
-            self.bridge.stop()
+        self.bridge.stop()
         logger.info("Kafka Sink Manager stopped")
