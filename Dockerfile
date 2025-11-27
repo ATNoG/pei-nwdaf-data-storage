@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:python3.11-alpine
+FROM ghcr.io/astral-sh/uv:python3.13-alpine
 WORKDIR /app
 
 # Install system dependencies (Alpine uses apk, not apt-get)
