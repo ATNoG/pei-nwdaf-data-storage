@@ -29,6 +29,7 @@ class Raw(BaseModel):
     ul_bandwidth: Optional[float] = None  # Upload
 
     model_config = ConfigDict(
+        extra="ignore",
         json_encoders={datetime: lambda v: v.isoformat()},
         from_attributes=True
     )

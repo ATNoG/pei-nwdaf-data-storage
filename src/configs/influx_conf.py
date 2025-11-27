@@ -1,6 +1,5 @@
 import logging
 import os
-from dotenv import load_dotenv
 
 from src.configs.conf import Conf
 
@@ -26,7 +25,6 @@ class InfluxConf(Conf):
 
     @classmethod
     def load_env(cls, file: str = ".env") -> None:
-        load_dotenv(file)
 
         cls.url    = os.getenv("INFLUX_URL", "http://localhost:8086")
         cls.token  = os.getenv("INFLUX_TOKEN", "")

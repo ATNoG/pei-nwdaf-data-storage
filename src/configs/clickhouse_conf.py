@@ -1,6 +1,5 @@
 import logging
 import os
-from dotenv import load_dotenv
 
 from src.configs.conf import Conf
 
@@ -26,7 +25,6 @@ class ClickhouseConf(Conf):
 
     @classmethod
     def load_env(cls, file: str = ".env") -> None:
-        load_dotenv(file)
 
         cls.host     = os.getenv("CLICKHOUSE_HOST", "localhost")
         cls.port     = int(os.getenv("CLICKHOUSE_PORT", "9000"))
