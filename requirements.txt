@@ -4,6 +4,6 @@ pydantic==2.12.4
 python-dotenv==1.2.1
 clickhouse-connect==0.7.19
 uvicorn==0.34.0
-kafka-python==2.0.2
+confluent_kafka==2.12.2
 bandit==1.8.0
 safety==2.3.5
