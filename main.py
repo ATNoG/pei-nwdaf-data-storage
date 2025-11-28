@@ -2,7 +2,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from src.routers.query import router, Influx, ClickHouse
+from src.routers.query import router, Influx, ClickHouse, MLflow
 from src.sink import KafkaSinkManager
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
@@ -14,6 +14,7 @@ async def lifespan(app: FastAPI):
     # Connect to databases
     Influx.service.connect()
     ClickHouse.service.connect()
+    MLflow.service.connect()
 
     # Initialize and start Kafka sink manager
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
