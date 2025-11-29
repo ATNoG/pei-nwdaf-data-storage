@@ -57,14 +57,13 @@ class KafkaSinkManager:
 
         logger.info(f"Starting Kafka Sink Manager for topics: {topics}")
 
-        for topic in topics:
-            self.bridge.bind_topic(topic, self.route_message)
+        self.bridge.add_n_topics(topics, bind=self.route_message)
 
-        await self.bridge.start()
+        await self.bridge.start_consumer()
 
     async def stop(self):
         if self.bridge is not None:
-            await self.bridge.stop()
+            await self.bridge.close()
             logger.info("Kafka Sink Manager stopped")
         else:
             logger.info("Kafka Sink Manager was not running")
