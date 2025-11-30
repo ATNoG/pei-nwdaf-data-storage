@@ -57,7 +57,8 @@ class KafkaSinkManager:
 
         logger.info(f"Starting Kafka Sink Manager for topics: {topics}")
 
-        self.bridge.add_n_topics(topics, bind=self.route_message)
+        for topic in topics:
+            self.bridge.add_topic(topic, bind=self.route_message)
 
         await self.bridge.start_consumer()
 
