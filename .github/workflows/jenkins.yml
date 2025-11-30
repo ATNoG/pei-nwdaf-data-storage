@@ -17,4 +17,4 @@ jobs:
         run: >-
                   curl -X POST
                   -u "${JENKINS_USER}:${JENKINS_API_TOKEN}"
-                  "http://localhost:8080/job/storage/build?token=${JENKINS_TRIGGER_TOKEN}"
+                  "http://localhost:8080/job/data-storage/build?token=${JENKINS_TRIGGER_TOKEN}"
