@@ -32,6 +32,7 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
+      - ./sql:/docker-entrypoint-initdb.d
     networks:
       - nwdaf-network
     restart: unless-stopped
