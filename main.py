@@ -1,28 +1,46 @@
 import os
+import asyncio
+from threading import Thread
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+
 from src.routers.v1 import v1_router
 from src.routers.v1.latency import ClickHouse
 from src.sink import KafkaSinkManager
-import asyncio
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
-KAFKA_TOPICS = ["raw-data","processed-data"]
+KAFKA_TOPICS = ["raw-data", "processed-data"]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Connect to databases
     ClickHouse.service.connect()
 
-    # Initialize and start Kafka sink manager
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
 
-    try:
-        await asyncio.to_thread(sink_manager.start, *KAFKA_TOPICS)
-    except Exception as e:
-        print(f"Warning: Failed to start Kafka sink: {e}")
-        print("API will continue running without Kafka sink")
+    def kafka_worker():
+        """
+        Kafka runs in its own thread with its own event loop.
+        This prevents rdkafka from blocking FastAPI startup.
+        """
+        try:
+            asyncio.run(sink_manager.start(*KAFKA_TOPICS))
+            print("Kafka consumer started successfully")
+        except Exception as e:
+            print(f"Kafka worker crashed: {e}")
+
+    kafka_thread = Thread(
+        target=kafka_worker,
+        daemon=True,
+        name="kafka-sink-thread"
+    )
+    kafka_thread.start()
+
+    print(
+        f"API started (Kafka connecting in background to "
+        f"{KAFKA_HOST}:{KAFKA_PORT})"
+    )
 
     yield
 
@@ -32,6 +50,7 @@ async def lifespan(app: FastAPI):
         print(f"Warning: Error stopping Kafka sink: {e}")
 
     ClickHouse.service.client.close()
+
 
 app = FastAPI(lifespan=lifespan)
 
