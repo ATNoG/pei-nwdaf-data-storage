@@ -1,25 +1,25 @@
-import asyncio
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from src.routers.query import router, Influx, ClickHouse
+from src.routers.v1 import v1_router
+from src.routers.v1.latency import ClickHouse
 from src.sink import KafkaSinkManager
+import asyncio
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
-KAFKA_TOPICS = ["raw-data"]
+KAFKA_TOPICS = ["raw-data","processed-data"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Connect to databases
-    Influx.service.connect()
     ClickHouse.service.connect()
 
     # Initialize and start Kafka sink manager
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
 
     try:
-        await sink_manager.start(*KAFKA_TOPICS)
+        await asyncio.to_thread(sink_manager.start, *KAFKA_TOPICS)
     except Exception as e:
         print(f"Warning: Failed to start Kafka sink: {e}")
         print("API will continue running without Kafka sink")
@@ -31,9 +31,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Warning: Error stopping Kafka sink: {e}")
 
-    Influx.service.client.close()
     ClickHouse.service.client.close()
 
 app = FastAPI(lifespan=lifespan)
 
-app.include_router(router, prefix="/data", tags=["data"])
+app.include_router(v1_router, prefix="/api/v1", tags=["v1"])

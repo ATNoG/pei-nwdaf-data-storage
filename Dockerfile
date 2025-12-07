@@ -29,4 +29,4 @@ RUN uv pip install --system -r requirements.txt
 COPY src/ ./src/
 COPY main.py .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8123"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
