@@ -23,10 +23,34 @@ class ClickHouseService(DBService):
         return []
 
     def write_data(self, data: dict) -> None:
-        pass
+        """Write a single processed latency record to ClickHouse"""
+        try:
+            processed = ProcessedLatency(**data)
+            record = processed.to_dict()
+            
+            # Use async_insert for better performance
+            self.client.insert(
+                'analytics.processed_latency',
+                [record],
+                settings={'async_insert': 1, 'wait_for_async_insert': 0}
+            )
+        except Exception as e:
+            raise Exception(f"Failed to write to ClickHouse: {e}")
 
     def write_batch(self, data_list: list[dict]) -> None:
-        pass
+        """Write multiple processed latency records to ClickHouse"""
+        try:
+            processed_list = [ProcessedLatency(**d) for d in data_list]
+            records = [p.to_dict() for p in processed_list]
+            
+            # Use async_insert for better performance
+            self.client.insert(
+                'analytics.processed_latency',
+                records,
+                settings={'async_insert': 1, 'wait_for_async_insert': 0}
+            )
+        except Exception as e:
+            raise Exception(f"Failed to batch write to ClickHouse: {e}")
 
 
     def query_processed_latency(self,

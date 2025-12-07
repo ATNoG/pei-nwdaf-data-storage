@@ -1,5 +1,5 @@
 from influxdb_client.client.influxdb_client import InfluxDBClient
-from influxdb_client.client.write_api import SYNCHRONOUS, WriteApi
+from influxdb_client.client.write_api import ASYNCHRONOUS, WriteApi
 from influxdb_client.client.query_api import QueryApi
 from src.configs.influx_conf import InfluxConf
 from src.models.raw import Raw
@@ -21,7 +21,7 @@ class InfluxService(DBService):
         )
 
         # get iteration apis
-        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+        self.write_api = self.client.write_api(write_options=ASYNCHRONOUS)
         self.query_api = self.client.query_api()
 
     def get_data(self, batch_number:int = 1 ,batch_size:int = 50) -> list[Raw]:
