@@ -12,6 +12,7 @@ class MockPyKafBridge:
         self.port = port
         self._closed = False
         self._callbacks = {}
+        self._consumer_task = None  # Added for consumer task tracking
 
     def add_n_topics(self, topics, bind=None):
         """Mock add_n_topics method."""

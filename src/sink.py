@@ -60,6 +60,11 @@ class KafkaSinkManager:
         self.bridge.add_n_topics(topics, bind=self.route_message)
 
         await self.bridge.start_consumer()
+        
+        # Keep the event loop alive - wait for the consumer task to complete
+        # This prevents asyncio.run() from exiting and cancelling the consumer task
+        if self.bridge._consumer_task:
+            await self.bridge._consumer_task
 
     async def stop(self):
         if self.bridge is not None:
