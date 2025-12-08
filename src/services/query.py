@@ -14,7 +14,7 @@ class QueryCH:
         primary_bandwidth,
         ul_bandwidth,
         sample_count
-    FROM processed_latency
+    FROM analytics.processed_latency
     WHERE cell_index = {cell_index:Int32}
       AND window_start_time >= {start_time:DateTime64(3)}
       AND window_end_time <= {end_time:DateTime64(3)}
