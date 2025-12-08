@@ -55,9 +55,9 @@ class TestKafkaSinkManager:
         assert not manager._running
 
     def test_route_message_raw_data_success(self, kafka_sink_manager, mock_influx_sink):
-        """Test routing raw-data messages to InfluxDB."""
+        """Test routing network.data.ingested messages to InfluxDB."""
         test_data = {
-            "topic": "raw-data",
+            "topic": "network.data.ingested",
             "content": json.dumps({
                 "timestamp": "2024-01-01T12:00:00Z",
                 "datarate": 100.5,
@@ -76,9 +76,9 @@ class TestKafkaSinkManager:
         assert call_args["datarate"] == 100.5
 
     def test_route_message_processed_data_success(self, kafka_sink_manager, mock_clickhouse_sink):
-        """Test routing processed-data messages to ClickHouse."""
+        """Test routing network.data.processed messages to ClickHouse."""
         test_data = {
-            "topic": "processed-data",
+            "topic": "network.data.processed",
             "content": json.dumps({
                 "id": 1,
                 "processed_value": 42.5
@@ -98,7 +98,7 @@ class TestKafkaSinkManager:
     def test_route_message_invalid_json(self, kafka_sink_manager, mock_influx_sink):
         """Test handling of invalid JSON in message content."""
         test_data = {
-            "topic": "raw-data",
+            "topic": "network.data.ingested",
             "content": "invalid json {"
         }
 
@@ -126,7 +126,7 @@ class TestKafkaSinkManager:
         mock_influx_sink.write.return_value = False
 
         test_data = {
-            "topic": "raw-data",
+            "topic": "network.data.ingested",
             "content": json.dumps({"timestamp": "2024-01-01T12:00:00Z"})
         }
 
@@ -140,7 +140,7 @@ class TestKafkaSinkManager:
         mock_clickhouse_sink.write.return_value = False
 
         test_data = {
-            "topic": "processed-data",
+            "topic": "network.data.processed",
             "content": json.dumps({"id": 1})
         }
 
@@ -152,7 +152,7 @@ class TestKafkaSinkManager:
     @pytest.mark.asyncio
     async def test_start_kafka_consumer(self, kafka_sink_manager):
         """Test starting the Kafka consumer."""
-        topics = ["raw-data", "processed-data"]
+        topics = ["network.data.ingested", "network.data.processed"]
 
         await kafka_sink_manager.start(*topics)
 
@@ -165,7 +165,7 @@ class TestKafkaSinkManager:
     async def test_stop_kafka_consumer(self, kafka_sink_manager):
         """Test stopping the Kafka consumer."""
         # Start first
-        await kafka_sink_manager.start("raw-data")
+        await kafka_sink_manager.start("network.data.ingested")
 
         # Then stop
         await kafka_sink_manager.stop()
@@ -182,7 +182,7 @@ class TestKafkaSinkManager:
         """Test routing multiple messages to the same topic."""
         messages = [
             {
-                "topic": "raw-data",
+                "topic": "network.data.ingested",
                 "content": json.dumps({"timestamp": f"2024-01-01T12:00:0{i}Z", "datarate": 100 + i})
             }
             for i in range(3)
@@ -215,7 +215,7 @@ class TestKafkaSinkManager:
         }
 
         test_data = {
-            "topic": "raw-data",
+            "topic": "network.data.ingested",
             "content": json.dumps(complete_data)
         }
 

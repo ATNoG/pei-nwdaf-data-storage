@@ -10,7 +10,7 @@ from src.sink import KafkaSinkManager
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
-KAFKA_TOPICS = ["raw-data", "processed-data"]
+KAFKA_TOPICS = ["network.data.ingested", "network.data.processed"]
 
 
 @asynccontextmanager
