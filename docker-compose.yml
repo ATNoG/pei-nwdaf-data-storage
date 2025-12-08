@@ -32,10 +32,32 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
-      - ./sql:/docker-entrypoint-initdb.d
     networks:
       - nwdaf-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  clickhouse-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.clickhouse-init
+    container_name: clickhouse-init
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+    volumes:
+      - ./sql:/sql:ro
+    networks:
+      - nwdaf-network
+    restart: "no"
 
   data-storage:
     container_name: data-storage
