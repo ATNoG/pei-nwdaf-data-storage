@@ -38,7 +38,7 @@ class KafkaSinkManager:
             logger.info(f"Attempting to write to InfluxDB: {list(message.keys())}")
             success = self.influx_sink.write(message)
             if success:
-                logger.debug(f"wrote to InfluxDB")
+                logger.debug("wrote to InfluxDB")
             else:
                 logger.error(f"Failed to write to InfluxDB: {message}")
         elif topic == "processed-data":
@@ -60,7 +60,7 @@ class KafkaSinkManager:
         self.bridge.add_n_topics(topics, bind=self.route_message)
 
         await self.bridge.start_consumer()
-        
+
         # Keep the event loop alive - wait for the consumer task to complete
         # This prevents asyncio.run() from exiting and cancelling the consumer task
         if self.bridge._consumer_task:
