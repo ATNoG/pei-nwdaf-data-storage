@@ -1,10 +1,80 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client
 from src.configs.clickhouse_conf import ClickhouseConf
 from src.models.processed_latency import ProcessedLatency
 from src.services.db_service import DBService
 from src.services.query import QueryCH
+
+
+def transform_processor_output(data: dict) -> dict:
+    """
+    Transform processor's nested output format to flat storage format.
+
+    Processor format:
+    {
+        "type": "latency",
+        "cell_index": 123,
+        "window_start": 1733684400,  // Unix timestamp in seconds
+        "window_end": 1733684410,
+        "rsrp": {"mean": -85.5, "max": -80, "min": -90, "std": 2.5, "samples": 100},
+        "mean_latency": {...},
+        ...
+    }
+
+    Storage format:
+    {
+        "window_start_time": datetime,
+        "window_end_time": datetime,
+        "window_duration_seconds": 10.0,
+        "cell_index": 123,
+        "rsrp_mean": -85.5,
+        "rsrp_max": -80,
+        ...
+    }
+    """
+    # Extract timestamps and convert to datetime
+    window_start = data.get("window_start")
+    window_end = data.get("window_end")
+
+    if window_start is None or window_end is None:
+        raise ValueError("Missing window_start or window_end in processor output")
+
+    window_start_dt = datetime.fromtimestamp(window_start, tz=timezone.utc)
+    window_end_dt = datetime.fromtimestamp(window_end, tz=timezone.utc)
+    window_duration = window_end - window_start
+
+    # Build flat structure
+    transformed = {
+        "window_start_time": window_start_dt,
+        "window_end_time": window_end_dt,
+        "window_duration_seconds": float(window_duration),
+        "cell_index": data.get("cell_index"),
+        "network": data.get("network"),
+        "sample_count": data.get("sample_count"),
+        "primary_bandwidth": data.get("primary_bandwidth"),
+        "ul_bandwidth": data.get("ul_bandwidth"),
+    }
+
+    # Flatten nested metric structures
+    # Processor uses "mean_latency", storage uses "latency"
+    metric_mapping = {
+        "rsrp": "rsrp",
+        "sinr": "sinr",
+        "rsrq": "rsrq",
+        "mean_latency": "latency",  # Map mean_latency -> latency
+        "cqi": "cqi"
+    }
+
+    for processor_key, storage_key in metric_mapping.items():
+        metric_data = data.get(processor_key)
+        if metric_data and isinstance(metric_data, dict):
+            transformed[f"{storage_key}_mean"] = metric_data.get("mean")
+            transformed[f"{storage_key}_max"] = metric_data.get("max")
+            transformed[f"{storage_key}_min"] = metric_data.get("min")
+            transformed[f"{storage_key}_std"] = metric_data.get("std")
+
+    return transformed
 
 class ClickHouseService(DBService):
     def __init__(self) -> None:
@@ -25,9 +95,11 @@ class ClickHouseService(DBService):
     def write_data(self, data: dict) -> None:
         """Write a single processed latency record to ClickHouse"""
         try:
-            processed = ProcessedLatency(**data)
+            # Transform nested processor format to flat storage format
+            transformed = transform_processor_output(data)
+            processed = ProcessedLatency(**transformed)
             record = processed.to_dict()
-            
+
             # Use async_insert for better performance
             self.client.insert(
                 'analytics.processed_latency',
@@ -40,9 +112,11 @@ class ClickHouseService(DBService):
     def write_batch(self, data_list: list[dict]) -> None:
         """Write multiple processed latency records to ClickHouse"""
         try:
-            processed_list = [ProcessedLatency(**d) for d in data_list]
+            # Transform each record from nested processor format to flat storage format
+            transformed_list = [transform_processor_output(d) for d in data_list]
+            processed_list = [ProcessedLatency(**d) for d in transformed_list]
             records = [p.to_dict() for p in processed_list]
-            
+
             # Use async_insert for better performance
             self.client.insert(
                 'analytics.processed_latency',

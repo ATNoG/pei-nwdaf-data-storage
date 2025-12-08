@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
-from src.services.clickhouse import ClickHouseService
+from src.services.clickhouse import ClickHouseService, transform_processor_output
 from src.models.processed_latency import ProcessedLatency
 
 
@@ -22,6 +22,123 @@ def clickhouse_service(mock_clickhouse_client):
     return service
 
 
+class TestTransformProcessorOutput:
+    """Tests for transform_processor_output function."""
+
+    def test_transform_complete_data(self):
+        """Test transformation of complete processor output."""
+        processor_output = {
+            "type": "latency",
+            "cell_index": 123,
+            "network": "5G",
+            "window_start": 1733684400,
+            "window_end": 1733684410,
+            "sample_count": 100,
+            "primary_bandwidth": 100.0,
+            "ul_bandwidth": 50.0,
+            "rsrp": {
+                "mean": -85.5,
+                "max": -80.0,
+                "min": -90.0,
+                "std": 2.5,
+                "samples": 100
+            },
+            "sinr": {
+                "mean": 15.0,
+                "max": 20.0,
+                "min": 10.0,
+                "std": 3.0,
+                "samples": 100
+            },
+            "rsrq": {
+                "mean": -10.0,
+                "max": -8.0,
+                "min": -12.0,
+                "std": 1.5,
+                "samples": 100
+            },
+            "mean_latency": {
+                "mean": 20.0,
+                "max": 30.0,
+                "min": 10.0,
+                "std": 5.0,
+                "samples": 100
+            },
+            "cqi": {
+                "mean": 12.0,
+                "max": 15.0,
+                "min": 10.0,
+                "std": 2.0,
+                "samples": 100
+            }
+        }
+
+        result = transform_processor_output(processor_output)
+
+        # Check timestamp conversion
+        assert result["window_start_time"] == datetime.fromtimestamp(1733684400, tz=timezone.utc)
+        assert result["window_end_time"] == datetime.fromtimestamp(1733684410, tz=timezone.utc)
+        assert result["window_duration_seconds"] == 10.0
+
+        # Check metadata
+        assert result["cell_index"] == 123
+        assert result["network"] == "5G"
+        assert result["sample_count"] == 100
+        assert result["primary_bandwidth"] == 100.0
+        assert result["ul_bandwidth"] == 50.0
+
+        # Check flattened RSRP
+        assert result["rsrp_mean"] == -85.5
+        assert result["rsrp_max"] == -80.0
+        assert result["rsrp_min"] == -90.0
+        assert result["rsrp_std"] == 2.5
+
+        # Check flattened latency (mean_latency -> latency)
+        assert result["latency_mean"] == 20.0
+        assert result["latency_max"] == 30.0
+        assert result["latency_min"] == 10.0
+        assert result["latency_std"] == 5.0
+
+    def test_transform_with_null_metrics(self):
+        """Test transformation when some metrics are missing."""
+        processor_output = {
+            "cell_index": 123,
+            "network": "5G",
+            "window_start": 1733684400,
+            "window_end": 1733684410,
+            "sample_count": 50,
+            "rsrp": {
+                "mean": -85.5,
+                "max": -80.0,
+                "min": -90.0,
+                "std": 2.5,
+                "samples": 50
+            }
+            # Missing sinr, rsrq, mean_latency, cqi
+        }
+
+        result = transform_processor_output(processor_output)
+
+        # Check that RSRP is present
+        assert result["rsrp_mean"] == -85.5
+
+        # Check that missing metrics result in None values
+        assert "sinr_mean" not in result or result["sinr_mean"] is None
+        assert "latency_mean" not in result or result["latency_mean"] is None
+
+    def test_transform_missing_window_times(self):
+        """Test that transformation raises error when window times are missing."""
+        processor_output = {
+            "cell_index": 123,
+            "network": "5G",
+            "sample_count": 100
+            # Missing window_start and window_end
+        }
+
+        with pytest.raises(ValueError, match="Missing window_start or window_end"):
+            transform_processor_output(processor_output)
+
+
 class TestClickHouseService:
     """Tests for ClickHouseService class."""
 
@@ -40,37 +157,52 @@ class TestClickHouseService:
         assert service.client == mock_clickhouse_client
 
     def test_write_data(self, clickhouse_service, mock_clickhouse_client):
-        """Test writing a single ProcessedLatency record to ClickHouse."""
-        # Prepare test data
+        """Test writing a single ProcessedLatency record to ClickHouse using processor format."""
+        # Prepare test data in processor format (nested structure)
         test_data = {
-            'window_start_time': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-            'window_end_time': datetime(2024, 1, 1, 12, 5, 0, tzinfo=timezone.utc),
-            'window_duration_seconds': 300.0,
-            'cell_index': 1,
-            'network': '5G',
-            'rsrp_mean': -80.0,
-            'rsrp_max': -70.0,
-            'rsrp_min': -90.0,
-            'rsrp_std': 5.0,
-            'sinr_mean': 15.0,
-            'sinr_max': 20.0,
-            'sinr_min': 10.0,
-            'sinr_std': 3.0,
-            'rsrq_mean': -10.0,
-            'rsrq_max': -8.0,
-            'rsrq_min': -12.0,
-            'rsrq_std': 1.5,
-            'latency_mean': 20.0,
-            'latency_max': 30.0,
-            'latency_min': 10.0,
-            'latency_std': 5.0,
-            'cqi_mean': 12.0,
-            'cqi_max': 15.0,
-            'cqi_min': 10.0,
-            'cqi_std': 2.0,
-            'primary_bandwidth': 100.0,
-            'ul_bandwidth': 50.0,
-            'sample_count': 100
+            "type": "latency",
+            "cell_index": 1,
+            "network": "5G",
+            "window_start": 1704110400,  # 2024-01-01 12:00:00 UTC
+            "window_end": 1704110700,    # 2024-01-01 12:05:00 UTC
+            "sample_count": 100,
+            "primary_bandwidth": 100.0,
+            "ul_bandwidth": 50.0,
+            "rsrp": {
+                "mean": -80.0,
+                "max": -70.0,
+                "min": -90.0,
+                "std": 5.0,
+                "samples": 100
+            },
+            "sinr": {
+                "mean": 15.0,
+                "max": 20.0,
+                "min": 10.0,
+                "std": 3.0,
+                "samples": 100
+            },
+            "rsrq": {
+                "mean": -10.0,
+                "max": -8.0,
+                "min": -12.0,
+                "std": 1.5,
+                "samples": 100
+            },
+            "mean_latency": {
+                "mean": 20.0,
+                "max": 30.0,
+                "min": 10.0,
+                "std": 5.0,
+                "samples": 100
+            },
+            "cqi": {
+                "mean": 12.0,
+                "max": 15.0,
+                "min": 10.0,
+                "std": 2.0,
+                "samples": 100
+            }
         }
 
         # Execute write
@@ -82,11 +214,11 @@ class TestClickHouseService:
 
         # Check table name
         assert call_args[0][0] == 'analytics.processed_latency'
-        
+
         # Check data format (should be a list with one dict)
         assert isinstance(call_args[0][1], list)
         assert len(call_args[0][1]) == 1
-        
+
         # Check async insert settings
         assert call_args[1]['settings']['async_insert'] == 1
         assert call_args[1]['settings']['wait_for_async_insert'] == 0
