@@ -63,4 +63,5 @@ class ProcessedLatency(BaseModel):
 
     def to_dict(self) -> dict:
         """Convert to dictionary for ClickHouse insertion"""
-        return self.model_dump(mode='json')
+        # Use mode='python' to keep datetime objects as datetime, not strings
+        return self.model_dump(mode='python')

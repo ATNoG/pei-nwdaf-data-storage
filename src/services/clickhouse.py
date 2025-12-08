@@ -44,14 +44,19 @@ def transform_processor_output(data: dict) -> dict:
     window_end_dt = datetime.fromtimestamp(window_end, tz=timezone.utc)
     window_duration = window_end - window_start
 
+    # Skip records with no samples
+    sample_count = data.get("sample_count", 0)
+    if sample_count == 0:
+        raise ValueError("Cannot store record with sample_count = 0")
+
     # Build flat structure
     transformed = {
         "window_start_time": window_start_dt,
         "window_end_time": window_end_dt,
         "window_duration_seconds": float(window_duration),
         "cell_index": data.get("cell_index"),
-        "network": data.get("network"),
-        "sample_count": data.get("sample_count"),
+        "network": data.get("network") or "Unknown",
+        "sample_count": sample_count,
         "primary_bandwidth": data.get("primary_bandwidth"),
         "ul_bandwidth": data.get("ul_bandwidth"),
     }
@@ -98,14 +103,36 @@ class ClickHouseService(DBService):
             # Transform nested processor format to flat storage format
             transformed = transform_processor_output(data)
             processed = ProcessedLatency(**transformed)
-            record = processed.to_dict()
+            record_dict = processed.to_dict()
+
+            # Convert dict to list in column order for ClickHouse
+            record_row = [
+                record_dict['window_start_time'],
+                record_dict['window_end_time'],
+                record_dict['window_duration_seconds'],
+                record_dict['cell_index'],
+                record_dict['network'],
+                record_dict['rsrp_mean'], record_dict['rsrp_max'], record_dict['rsrp_min'], record_dict['rsrp_std'],
+                record_dict['sinr_mean'], record_dict['sinr_max'], record_dict['sinr_min'], record_dict['sinr_std'],
+                record_dict['rsrq_mean'], record_dict['rsrq_max'], record_dict['rsrq_min'], record_dict['rsrq_std'],
+                record_dict['latency_mean'], record_dict['latency_max'], record_dict['latency_min'], record_dict['latency_std'],
+                record_dict['cqi_mean'], record_dict['cqi_max'], record_dict['cqi_min'], record_dict['cqi_std'],
+                record_dict['primary_bandwidth'],
+                record_dict['ul_bandwidth'],
+                record_dict['sample_count']
+            ]
 
             # Use async_insert for better performance
             self.client.insert(
                 'analytics.processed_latency',
-                [record],
+                [record_row],
                 settings={'async_insert': 1, 'wait_for_async_insert': 0}
             )
+        except ValueError as e:
+            # Skip records with no samples (sample_count = 0)
+            if "sample_count = 0" in str(e):
+                return
+            raise Exception(f"Failed to write to ClickHouse: {e}")
         except Exception as e:
             raise Exception(f"Failed to write to ClickHouse: {e}")
 
@@ -113,14 +140,47 @@ class ClickHouseService(DBService):
         """Write multiple processed latency records to ClickHouse"""
         try:
             # Transform each record from nested processor format to flat storage format
-            transformed_list = [transform_processor_output(d) for d in data_list]
+            # Skip records with sample_count = 0
+            transformed_list = []
+            for d in data_list:
+                try:
+                    transformed = transform_processor_output(d)
+                    transformed_list.append(transformed)
+                except ValueError as e:
+                    if "sample_count = 0" not in str(e):
+                        raise
+
+            # Skip batch if no valid records
+            if not transformed_list:
+                return
+
             processed_list = [ProcessedLatency(**d) for d in transformed_list]
-            records = [p.to_dict() for p in processed_list]
+
+            # Convert each dict to list in column order for ClickHouse
+            record_rows = []
+            for p in processed_list:
+                record_dict = p.to_dict()
+                record_row = [
+                    record_dict['window_start_time'],
+                    record_dict['window_end_time'],
+                    record_dict['window_duration_seconds'],
+                    record_dict['cell_index'],
+                    record_dict['network'],
+                    record_dict['rsrp_mean'], record_dict['rsrp_max'], record_dict['rsrp_min'], record_dict['rsrp_std'],
+                    record_dict['sinr_mean'], record_dict['sinr_max'], record_dict['sinr_min'], record_dict['sinr_std'],
+                    record_dict['rsrq_mean'], record_dict['rsrq_max'], record_dict['rsrq_min'], record_dict['rsrq_std'],
+                    record_dict['latency_mean'], record_dict['latency_max'], record_dict['latency_min'], record_dict['latency_std'],
+                    record_dict['cqi_mean'], record_dict['cqi_max'], record_dict['cqi_min'], record_dict['cqi_std'],
+                    record_dict['primary_bandwidth'],
+                    record_dict['ul_bandwidth'],
+                    record_dict['sample_count']
+                ]
+                record_rows.append(record_row)
 
             # Use async_insert for better performance
             self.client.insert(
                 'analytics.processed_latency',
-                records,
+                record_rows,
                 settings={'async_insert': 1, 'wait_for_async_insert': 0}
             )
         except Exception as e:
