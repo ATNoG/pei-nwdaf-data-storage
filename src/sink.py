@@ -33,7 +33,7 @@ class KafkaSinkManager:
             logger.error(f"Failed to parse message: {e}")
             return data
 
-        if topic == "raw-data":
+        if topic == "network.data.ingested":
             # Message is already the raw data we need
             logger.info(f"Attempting to write to InfluxDB: {list(message.keys())}")
             success = self.influx_sink.write(message)
@@ -41,7 +41,7 @@ class KafkaSinkManager:
                 logger.debug("wrote to InfluxDB")
             else:
                 logger.error(f"Failed to write to InfluxDB: {message}")
-        elif topic == "processed-data":
+        elif topic == "network.data.processed":
             # TODO
             success = self.clickhouse_sink.write(message)
             if not success:
