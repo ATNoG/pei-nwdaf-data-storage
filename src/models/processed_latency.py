@@ -60,7 +60,7 @@ class ProcessedLatency(BaseModel):
         from_attributes=True
     )
 
-    @field_serializer('window_start_time', 'window_end_time')
+    @field_serializer('window_start_time', 'window_end_time', when_used='json')
     def serialize_datetime_as_timestamp(self, dt: datetime) -> int:
         """Convert datetime to Unix timestamp for JSON serialization"""
         return int(dt.timestamp())
