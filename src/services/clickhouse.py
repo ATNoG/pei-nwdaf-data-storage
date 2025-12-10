@@ -44,10 +44,7 @@ def transform_processor_output(data: dict) -> dict:
     window_end_dt = datetime.fromtimestamp(window_end, tz=timezone.utc)
     window_duration = window_end - window_start
 
-    # Skip records with no samples
     sample_count = data.get("sample_count", 0)
-    if sample_count == 0:
-        raise ValueError("Cannot store record with sample_count = 0")
 
     # Build flat structure
     transformed = {
@@ -128,11 +125,6 @@ class ClickHouseService(DBService):
                 [record_row],
                 settings={'async_insert': 1, 'wait_for_async_insert': 0}
             )
-        except ValueError as e:
-            # Skip records with no samples (sample_count = 0)
-            if "sample_count = 0" in str(e):
-                return
-            raise Exception(f"Failed to write to ClickHouse: {e}")
         except Exception as e:
             raise Exception(f"Failed to write to ClickHouse: {e}")
 
@@ -140,17 +132,9 @@ class ClickHouseService(DBService):
         """Write multiple processed latency records to ClickHouse"""
         try:
             # Transform each record from nested processor format to flat storage format
-            # Skip records with sample_count = 0
-            transformed_list = []
-            for d in data_list:
-                try:
-                    transformed = transform_processor_output(d)
-                    transformed_list.append(transformed)
-                except ValueError as e:
-                    if "sample_count = 0" not in str(e):
-                        raise
+            transformed_list = [transform_processor_output(d) for d in data_list]
 
-            # Skip batch if no valid records
+            # Skip batch if no records
             if not transformed_list:
                 return
 
@@ -188,8 +172,8 @@ class ClickHouseService(DBService):
 
 
     def query_processed_latency(self,
-        start_time: datetime,
-        end_time: datetime,
+        start_time: int,
+        end_time: int,
         cell_index: int,
         offset: int,
         limit: int
@@ -198,8 +182,8 @@ class ClickHouseService(DBService):
         Query processed latency data from ClickHouse.
 
         Args:
-            start_time: Filter by window_start_time >= start_time
-            end_time: Filter by window_end_time <= end_time
+            start_time: Filter by window_start_time >= start_time (Unix timestamp in seconds)
+            end_time: Filter by window_end_time <= end_time (Unix timestamp in seconds)
             cell_index: Filter by specific cell index
             offset: Number of records to skip
             limit: Maximum number of records to return
