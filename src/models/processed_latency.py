@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -53,13 +53,17 @@ class ProcessedLatency(BaseModel):
     primary_bandwidth: Optional[float] = None
     ul_bandwidth: Optional[float] = None
 
-    sample_count: int = Field(ge=1)
+    sample_count: int = Field(ge=0)
 
     model_config = ConfigDict(
         extra="ignore",
-        json_encoders={datetime: lambda v: v.isoformat()},
         from_attributes=True
     )
+
+    @field_serializer('window_start_time', 'window_end_time')
+    def serialize_datetime_as_timestamp(self, dt: datetime) -> int:
+        """Convert datetime to Unix timestamp for JSON serialization"""
+        return int(dt.timestamp())
 
     def to_dict(self) -> dict:
         """Convert to dictionary for ClickHouse insertion"""

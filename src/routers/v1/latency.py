@@ -2,7 +2,6 @@
 Endpoints for query data
 """
 from fastapi import APIRouter, HTTPException, Query
-from datetime import datetime
 from src.configs.clickhouse_conf import ClickhouseConf
 from src.services.clickhouse import ClickHouseService
 from src.models.processed_latency import ProcessedLatency
@@ -14,10 +13,52 @@ class ClickHouse():
     service = ClickHouseService()
 
 
+@router.get("/latency/example", response_model=list[ProcessedLatency])
+def get_latency_example():
+    """
+    Returns example response data for the processed latency endpoint.
+
+    This endpoint provides a sample of what the actual data format looks like,
+    useful for API documentation and client development.
+    """
+    return [
+        {
+            "window_start_time": 1733828400,
+            "window_end_time": 1733828700,
+            "window_duration_seconds": 0.0,
+            "cell_index": 0,
+            "network": "",
+            "rsrp_mean": 0.0,
+            "rsrp_max": 0.0,
+            "rsrp_min": 0.0,
+            "rsrp_std": 0.0,
+            "sinr_mean": 0.0,
+            "sinr_max": 0.0,
+            "sinr_min": 0.0,
+            "sinr_std": 0.0,
+            "rsrq_mean": 0.0,
+            "rsrq_max": 0.0,
+            "rsrq_min": 0.0,
+            "rsrq_std": 0.0,
+            "latency_mean": 0.0,
+            "latency_max": 0.0,
+            "latency_min": 0.0,
+            "latency_std": 0.0,
+            "cqi_mean": 0.0,
+            "cqi_max": 0.0,
+            "cqi_min": 0.0,
+            "cqi_std": 0.0,
+            "primary_bandwidth": 0.0,
+            "ul_bandwidth": 0.0,
+            "sample_count": 0
+        }
+    ]
+
+
 @router.get("/latency/", response_model=list[ProcessedLatency])
 def get_processed_latency(
-    start_time: datetime = Query(..., description="Window start time (ISO format)"),
-    end_time: datetime = Query(..., description="Window end time (ISO format)"),
+    start_time: int = Query(..., description="Window start time (Unix timestamp in seconds)"),
+    end_time: int = Query(..., description="Window end time (Unix timestamp in seconds)"),
 
     cell_index: int = Query(..., description="Cell index (required)"),
 

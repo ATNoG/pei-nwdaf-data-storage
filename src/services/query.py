@@ -16,8 +16,8 @@ class QueryCH:
         sample_count
     FROM analytics.processed_latency
     WHERE cell_index = {cell_index:Int32}
-      AND window_start_time >= {start_time:DateTime64(3)}
-      AND window_end_time <= {end_time:DateTime64(3)}
+      AND toUnixTimestamp(window_start_time) >= {start_time:Int64}
+      AND toUnixTimestamp(window_end_time) <= {end_time:Int64}
     ORDER BY window_start_time DESC
     LIMIT {limit:Int32}
     OFFSET {offset:Int32}

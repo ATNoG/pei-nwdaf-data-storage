@@ -5,6 +5,11 @@ from fastapi.testclient import TestClient
 from src.models.processed_latency import ProcessedLatency
 
 
+# Sample Unix timestamps for testing
+SAMPLE_START_TIME = int(datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp())
+SAMPLE_END_TIME = int(datetime(2024, 1, 1, 13, 0, 0, tzinfo=timezone.utc).timestamp())
+
+
 @pytest.fixture
 def mock_clickhouse_service():
     """Mock ClickHouseService for testing."""
@@ -73,8 +78,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1
             }
         )
@@ -98,8 +103,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1
             }
         )
@@ -113,8 +118,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z"
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME
             }
         )
 
@@ -127,8 +132,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1,
                 "offset": 50,
                 "limit": 25
@@ -147,8 +152,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1,
                 "limit": 5000  # Exceeds max of 1000
             }
@@ -161,8 +166,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1,
                 "offset": -10
             }
@@ -177,8 +182,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1
             }
         )
@@ -195,8 +200,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1
             }
         )
@@ -212,8 +217,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1
             }
         )
@@ -245,8 +250,8 @@ class TestLatencyEndpoint:
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "2024-01-01T12:00:00Z",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": SAMPLE_START_TIME,
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1
             }
         )
@@ -257,12 +262,12 @@ class TestLatencyEndpoint:
         assert data[0]["sample_count"] == 50
 
     def test_get_processed_latency_invalid_datetime_format(self, test_client, mock_clickhouse_service):
-        """Test endpoint with invalid datetime format."""
+        """Test endpoint with invalid timestamp format."""
         response = test_client.get(
             "/api/v1/processed/latency/",
             params={
-                "start_time": "invalid-date",
-                "end_time": "2024-01-01T13:00:00Z",
+                "start_time": "invalid-timestamp",
+                "end_time": SAMPLE_END_TIME,
                 "cell_index": 1
             }
         )
