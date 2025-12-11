@@ -176,8 +176,9 @@ class ClickHouseService(DBService):
         start_time: int,
         end_time: int,
         cell_index: int,
+        window_duration_seconds:int,
         offset: int,
-        limit: int
+        limit: int,
     ) -> list[ProcessedLatency]:
         """
         Query processed latency data from ClickHouse.
@@ -201,7 +202,8 @@ class ClickHouseService(DBService):
                 'end_time': end_time,
                 'cell_index': cell_index,
                 'offset': offset,
-                'limit': limit
+                'limit': limit,
+                'window_duration_seconds':window_duration_seconds,
             }
         )
 

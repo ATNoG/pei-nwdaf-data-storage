@@ -61,7 +61,7 @@ def get_processed_latency(
     end_time: int = Query(..., description="Window end time (Unix timestamp in seconds)"),
 
     cell_index: int = Query(..., description="Cell index (required)"),
-
+    window_duration_seconds:int = Query(..., description="Duration of the target windows"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 
@@ -83,6 +83,7 @@ def get_processed_latency(
             "cell_index": cell_index,
             "offset": offset,
             "limit": limit,
+            'window_duration_seconds':window_duration_seconds,
         }
 
         results = ClickHouse.service.query_processed_latency(**query_params)
