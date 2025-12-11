@@ -36,7 +36,7 @@ class InfluxService(DBService):
             start_time=start_time,
             end_time=end_time,
             cell_index=cell_index,
-            limit=_LIMIT,
+            limit=_LIMIT+1,
             offset=offset
         )
 
@@ -48,7 +48,7 @@ class InfluxService(DBService):
             for record in table.records:
                 rows.append(record.values)
 
-        return rows
+        return rows, len(rows)>_LIMIT
 
 
     def write_data(self, data: dict) -> None :

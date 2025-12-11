@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
 from src.configs.influx_conf import InfluxConf
 from src.services.influx import InfluxService
-from src.models.raw import Raw
+from src.models.raw import RawResponse
+from datetime import datetime
+
 
 router = APIRouter()
 
@@ -10,7 +12,7 @@ class Influx():
     service = InfluxService()
 
 
-@router.get("/", response_model=list[Raw])
+@router.get("/", response_model=RawResponse)
 def get_raw_data(
     start_time: int = Query(..., description="Start time (Unix timestamp in seconds)"),
     end_time: int = Query(..., description="End time (Unix timestamp in seconds)"),
@@ -32,9 +34,14 @@ def get_raw_data(
             "batch_number": batch_number,
         }
 
-        results = Influx.service.query_raw_data(**query_params)
+        results,has_next = Influx.service.query_raw_data(**query_params)
 
-        return results
+        for row in results:
+            for k, v in row.items():
+                if isinstance(v, datetime):
+                    row[k] = v.isoformat()
+
+        return {"data": results, "has_next": has_next}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying raw data: {str(e)}")
