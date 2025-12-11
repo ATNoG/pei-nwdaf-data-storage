@@ -13,7 +13,7 @@ SAMPLE_END_TIME = int(datetime(2024, 1, 1, 13, 0, 0, tzinfo=timezone.utc).timest
 @pytest.fixture
 def mock_clickhouse_service():
     """Mock ClickHouseService for testing."""
-    with patch('src.routers.v1.latency.ClickHouse') as mock:
+    with patch('src.routers.v1.latency_router.ClickHouse') as mock:
         service_mock = MagicMock()
         mock.service = service_mock
         yield service_mock

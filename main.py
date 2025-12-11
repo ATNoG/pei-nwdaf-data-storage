@@ -18,6 +18,9 @@ KAFKA_TOPICS = ["network.data.ingested", "network.data.processed"]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
+    Influx.service.connect()
+    ClickHouse.service.connect()
+
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
 
     def kafka_worker():

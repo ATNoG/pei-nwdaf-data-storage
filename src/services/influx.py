@@ -9,7 +9,6 @@ from src.services.influx_query import QueryIF
 class InfluxService(DBService):
     def __init__(self) -> None:
         self.conf=      InfluxConf()
-        self.connect()
 
     def connect(self):
         """Init client"""

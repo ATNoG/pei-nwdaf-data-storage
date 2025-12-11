@@ -82,7 +82,6 @@ class ClickHouseService(DBService):
     def __init__(self) -> None:
         self.conf =   ClickhouseConf()
         self.client:  Client = None
-        self.connect()
 
 
     def connect(self):
