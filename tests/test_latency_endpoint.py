@@ -80,7 +80,8 @@ class TestLatencyEndpoint:
             params={
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
-                "cell_index": 1
+                "cell_index": 1,
+                "window_duration_seconds":300
             }
         )
 
@@ -105,7 +106,8 @@ class TestLatencyEndpoint:
             params={
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
-                "cell_index": 1
+                "cell_index": 1,
+                "window_duration_seconds":300
             }
         )
 
@@ -120,6 +122,7 @@ class TestLatencyEndpoint:
             params={
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME
+
             }
         )
 
@@ -136,7 +139,8 @@ class TestLatencyEndpoint:
                 "end_time": SAMPLE_END_TIME,
                 "cell_index": 1,
                 "offset": 50,
-                "limit": 25
+                "limit": 25,
+                "window_duration_seconds":300
             }
         )
 
@@ -155,7 +159,8 @@ class TestLatencyEndpoint:
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
                 "cell_index": 1,
-                "limit": 5000  # Exceeds max of 1000
+                "limit": 5000,  # Exceeds max of 1000
+                "window_duration_seconds":300
             }
         )
 
@@ -169,7 +174,8 @@ class TestLatencyEndpoint:
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
                 "cell_index": 1,
-                "offset": -10
+                "offset": -10,
+                "window_duration_seconds":300
             }
         )
 
@@ -184,7 +190,8 @@ class TestLatencyEndpoint:
             params={
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
-                "cell_index": 1
+                "cell_index": 1,
+                "window_duration_seconds":300
             }
         )
 
@@ -202,7 +209,8 @@ class TestLatencyEndpoint:
             params={
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
-                "cell_index": 1
+                "cell_index": 1,
+                "window_duration_seconds":300
             }
         )
 
@@ -219,7 +227,8 @@ class TestLatencyEndpoint:
             params={
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
-                "cell_index": 1
+                "cell_index": 1,
+                "window_duration_seconds":300
             }
         )
 
@@ -252,7 +261,8 @@ class TestLatencyEndpoint:
             params={
                 "start_time": SAMPLE_START_TIME,
                 "end_time": SAMPLE_END_TIME,
-                "cell_index": 1
+                "cell_index": 1,
+                "window_duration_seconds":300
             }
         )
 
@@ -268,7 +278,8 @@ class TestLatencyEndpoint:
             params={
                 "start_time": "invalid-timestamp",
                 "end_time": SAMPLE_END_TIME,
-                "cell_index": 1
+                "cell_index": 1,
+                "window_duration_seconds":300
             }
         )
 

@@ -263,6 +263,7 @@ class TestClickHouseService:
             start_time=start_time,
             end_time=end_time,
             cell_index=1,
+            window_duration_seconds=10,
             offset=0,
             limit=100
         )
@@ -292,6 +293,7 @@ class TestClickHouseService:
             start_time=start_time,
             end_time=end_time,
             cell_index=1,
+            window_duration_seconds=10,
             offset=0,
             limit=100
         )
@@ -311,6 +313,7 @@ class TestClickHouseService:
             start_time=start_time,
             end_time=end_time,
             cell_index=1,
+            window_duration_seconds=10,
             offset=50,
             limit=25
         )
@@ -346,6 +349,7 @@ class TestClickHouseService:
             start_time=start_time,
             end_time=end_time,
             cell_index=1,
+            window_duration_seconds=10,
             offset=0,
             limit=100
         )
@@ -380,6 +384,7 @@ class TestClickHouseService:
             start_time=start_time,
             end_time=end_time,
             cell_index=1,
+            window_duration_seconds=10,
             offset=0,
             limit=100
         )
