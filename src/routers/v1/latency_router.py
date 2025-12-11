@@ -2,15 +2,10 @@
 Endpoints for query data
 """
 from fastapi import APIRouter, HTTPException, Query
-from src.configs.clickhouse_conf import ClickhouseConf
-from src.services.clickhouse import ClickHouseService
+from src.services.databases import ClickHouse
 from src.models.processed_latency import ProcessedLatency
 
 router = APIRouter()
-
-class ClickHouse():
-    conf = ClickhouseConf()
-    service = ClickHouseService()
 
 
 @router.get("/latency/example", response_model=list[ProcessedLatency])

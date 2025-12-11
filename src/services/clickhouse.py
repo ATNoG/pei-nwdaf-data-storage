@@ -3,7 +3,6 @@ import clickhouse_connect
 from clickhouse_connect.driver.client import Client
 from src.configs.clickhouse_conf import ClickhouseConf
 from src.models.processed_latency import ProcessedLatency
-from src.services.db_service import DBService
 from src.services.clickhouse_query import QueryCH
 
 
@@ -78,7 +77,7 @@ def transform_processor_output(data: dict) -> dict:
 
     return transformed
 
-class ClickHouseService(DBService):
+class ClickHouseService:
     def __init__(self) -> None:
         self.conf =   ClickhouseConf()
         self.client:  Client = None
@@ -91,9 +90,6 @@ class ClickHouseService(DBService):
             username = self.conf.user,
             password = self.conf.password,
         )
-
-    def get_data(self, batch_number: int = 1, batch_size: int = 50) -> list:
-        return []
 
     def write_data(self, data: dict) -> None:
         """Write a single processed latency record to ClickHouse"""

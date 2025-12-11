@@ -1,15 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query
-from src.configs.influx_conf import InfluxConf
-from src.services.influx import InfluxService
 from src.models.raw import RawResponse
 from datetime import datetime
-
+from src.services.databases import Influx
 
 router = APIRouter()
 
-class Influx():
-    conf = InfluxConf()
-    service = InfluxService()
 
 
 @router.get("/", response_model=RawResponse)

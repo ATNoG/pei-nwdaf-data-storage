@@ -1,12 +1,10 @@
 from influxdb_client.client.influxdb_client import InfluxDBClient
-from influxdb_client.client.write_api import ASYNCHRONOUS, WriteApi
-from influxdb_client.client.query_api import QueryApi
+from influxdb_client.client.write_api import ASYNCHRONOUS
 from src.configs.influx_conf import InfluxConf
-from src.models.raw import Raw
-from src.services.db_service import DBService
+from src.models.raw import Raw, RAW_MEASUREMENT
 from src.services.influx_query import QueryIF
 
-class InfluxService(DBService):
+class InfluxService:
     def __init__(self) -> None:
         self.conf=      InfluxConf()
 
@@ -21,10 +19,6 @@ class InfluxService(DBService):
         # get iteration apis
         self.write_api = self.client.write_api(write_options=ASYNCHRONOUS)
         self.query_api = self.client.query_api()
-
-    def get_data(self, batch_number:int = 1 ,batch_size:int = 50) -> list[Raw]:
-        #TODO: add query
-        return []
 
     def query_raw_data(self, start_time: int, end_time: int, cell_index: int, batch_number: int):
         _LIMIT = 50
@@ -61,3 +55,23 @@ class InfluxService(DBService):
         raw_list = [Raw(**d) for d in data_list]
         points = [r.to_point() for r in raw_list]
         self.write_api.write(bucket=self.conf.bucket, org = self.conf.org ,record = points)
+
+    def get_known_cells(self) -> list[int]:
+        """Returns a list of known cell indexes"""
+
+        query = QueryIF.get_known_cells.format(
+            bucket=self.conf.bucket,
+            measurement=RAW_MEASUREMENT
+        )
+
+        tables = self.query_api.query(query)
+
+        cells = []
+        for table in tables:
+            for record in table.records:
+                try:
+                    cells.append(int(record["_value"]))
+                except (TypeError, ValueError):
+                    pass
+
+        return set(cells)

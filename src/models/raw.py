@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from influxdb_client.client.write.point import Point
 from typing import Optional
 
-RAW:str = "raw"
+RAW_MEASUREMENT:str = "raw"
 
 
 
@@ -38,10 +38,10 @@ class Raw(BaseModel):
 
     def to_point(self) -> Point:
         """Convert to InfluxDB Point for writing"""
-        point = Point(RAW).time(self.timestamp)
+        point = Point(RAW_MEASUREMENT).time(self.timestamp)
 
         # Tags (indexed, used for filtering/grouping)
-        tags = ["cell_index", "network"]
+        tags = {"cell_index", "network"}
 
         # Add tags and fields
         for key, value in self.model_dump(exclude={"timestamp"}).items():
