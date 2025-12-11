@@ -4,7 +4,7 @@ from clickhouse_connect.driver.client import Client
 from src.configs.clickhouse_conf import ClickhouseConf
 from src.models.processed_latency import ProcessedLatency
 from src.services.db_service import DBService
-from src.services.query import QueryCH
+from src.services.clickhouse_query import QueryCH
 
 
 def transform_processor_output(data: dict) -> dict:
@@ -82,6 +82,7 @@ class ClickHouseService(DBService):
     def __init__(self) -> None:
         self.conf =   ClickhouseConf()
         self.client:  Client = None
+
 
     def connect(self):
         self.client = clickhouse_connect.get_client(

@@ -5,6 +5,8 @@ from typing import Optional
 
 RAW:str = "raw"
 
+
+
 class Raw(BaseModel):
     # Temporal
     timestamp: datetime = Field(
@@ -49,3 +51,7 @@ class Raw(BaseModel):
                 else:
                     point.field(key, value)
         return point
+
+class RawResponse(BaseModel):
+    data: list[Raw]
+    has_next: bool
