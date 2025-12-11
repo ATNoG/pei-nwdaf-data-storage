@@ -4,13 +4,12 @@ from influxdb_client.client.query_api import QueryApi
 from src.configs.influx_conf import InfluxConf
 from src.models.raw import Raw
 from src.services.db_service import DBService
+from src.services.influx_query import QueryIF
 
 class InfluxService(DBService):
     def __init__(self) -> None:
         self.conf=      InfluxConf()
-        self.client:    InfluxDBClient
-        self.write_api: WriteApi
-        self.query_api: QueryApi
+        self.connect()
 
     def connect(self):
         """Init client"""
@@ -27,6 +26,30 @@ class InfluxService(DBService):
     def get_data(self, batch_number:int = 1 ,batch_size:int = 50) -> list[Raw]:
         #TODO: add query
         return []
+
+    def query_raw_data(self, start_time: int, end_time: int, cell_index: int, batch_number: int):
+        _LIMIT = 50
+        offset = (batch_number-1) * _LIMIT
+
+        query = QueryIF.between.format(
+            bucket=self.conf.bucket,
+            start_time=start_time,
+            end_time=end_time,
+            cell_index=cell_index,
+            limit=_LIMIT,
+            offset=offset
+        )
+
+        result = self.query_api.query(query)
+
+        # Convert FluxTable to list of dicts
+        rows = []
+        for table in result:
+            for record in table.records:
+                rows.append(record.values)
+
+        return rows
+
 
     def write_data(self, data: dict) -> None :
         """Write a single record"""

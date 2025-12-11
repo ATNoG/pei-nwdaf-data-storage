@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.routers.v1 import v1_router
-from src.routers.v1.latency import ClickHouse
+from src.routers.v1.latency_router import ClickHouse
+from src.routers.v1.raw_router import Influx
+
 from src.sink import KafkaSinkManager
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
@@ -15,7 +17,6 @@ KAFKA_TOPICS = ["network.data.ingested", "network.data.processed"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ClickHouse.service.connect()
 
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
 
