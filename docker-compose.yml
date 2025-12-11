@@ -53,8 +53,6 @@ services:
       - CLICKHOUSE_HOST=clickhouse
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
-    volumes:
-      - ./sql:/sql:ro
     networks:
       - nwdaf-network
     restart: "no"
