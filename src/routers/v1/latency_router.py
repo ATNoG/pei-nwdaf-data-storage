@@ -50,7 +50,7 @@ def get_latency_example():
     ]
 
 
-@router.get("/latency/", response_model=list[ProcessedLatency])
+@router.get("/latency", response_model=list[ProcessedLatency])
 def get_processed_latency(
     start_time: int = Query(..., description="Window start time (Unix timestamp in seconds)"),
     end_time: int = Query(..., description="Window end time (Unix timestamp in seconds)"),

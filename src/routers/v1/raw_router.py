@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 
-@router.get("/", response_model=RawResponse)
+@router.get("", response_model=RawResponse)
 def get_raw_data(
     start_time: int = Query(..., description="Start time (Unix timestamp in seconds)"),
     end_time: int = Query(..., description="End time (Unix timestamp in seconds)"),

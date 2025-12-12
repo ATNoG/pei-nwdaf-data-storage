@@ -6,7 +6,7 @@ from src.services.databases import Influx
 
 router = APIRouter()
 
-@router.get("/", response_model=list[int])
+@router.get("", response_model=list[int])
 def get_processed_latency():
     """
     Return a list of know cell indexes
