@@ -1,9 +1,13 @@
 from src.sinks.sinkI import Sink
-from src.services.influx import InfluxService
+from src.services.databases import Influx
+
+
 class InfluxSink(Sink):
+    """Sink for writing raw data to InfluxDB using a singleton connection."""
+
     def __init__(self, logger):
-        self.service = InfluxService()
-        self.service.connect()
+        # Use the shared singleton from databases.py
+        self.service = Influx.get_service()
         self.logger = logger
         logger.info("InfluxDB sink initialized")
 
