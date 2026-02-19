@@ -13,6 +13,7 @@ logger = logging.getLogger("Config")
 class SchemaConf(Conf):
     core_fields: dict[str, type] = {}
     extra_fields: dict[str, type] = {}
+    tags: set[str] = set()
 
     _TYPE_MAP = {
         "float": float,
@@ -59,9 +60,11 @@ class SchemaConf(Conf):
         extra_fields_path_str: str = os.getenv(
             "EXTRA_FIELDS_PATH", "confs/extra_fields.yml"
         )
+        tag_fields_path_str: str = os.getenv("TAG_FIELDS_PATH", "confs/tag_fields.yml")
 
         core_fields_path: Path = Path(core_fields_path_str)
         extra_fields_path: Path = Path(extra_fields_path_str)
+        tag_fields_path: Path = Path(tag_fields_path_str)
 
         if core_fields_path.exists():
             raw_core_fields = cls._read_yml(core_fields_path)
@@ -77,6 +80,14 @@ class SchemaConf(Conf):
         else:
             logger.warning(f"[{extra_fields_path.absolute().resolve()}] not found")
 
+        if tag_fields_path.exists():
+            raw_tags = cls._read_yml(tag_fields_path)
+            cls.tags = set(raw_tags) if raw_tags else set()
+            logger.info(f"Loaded {len(cls.tags)} tag fields")
+        else:
+            logger.warning(f"[{tag_fields_path.absolute().resolve()}] not found")
+            cls.tags = set()  # Default to empty set
+
     @classmethod
     def load(cls) -> None:
         cls.load_yml()
@@ -90,11 +101,16 @@ class SchemaConf(Conf):
         }
 
     @classmethod
-    def get_extra_fields(cls) -> dict[str, Any]:
-        """Get set of all allowed field names"""
+    def get_extra_fields(cls) -> dict[str, type]:
+        """Get extra fields with parsed types"""
         return cls.extra_fields
 
     @classmethod
-    def get_core_fields(cls) -> dict[str, Any]:
-        """Get set of required core field names"""
+    def get_core_fields(cls) -> dict[str, type]:
+        """Get core fields with parsed types"""
         return cls.core_fields
+
+    @classmethod
+    def get_tags(cls) -> set[str]:
+        """Get tag field names for InfluxDB"""
+        return cls.tags
