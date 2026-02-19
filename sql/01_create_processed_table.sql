@@ -1,7 +1,6 @@
 CREATE DATABASE IF NOT EXISTS analytics;
 CREATE TABLE IF NOT EXISTS analytics.processed
 (
-    timestamp DateTime64(3),
     cell_index Int32,
 
     network Nullable(String),
@@ -41,5 +40,5 @@ CREATE TABLE IF NOT EXISTS analytics.processed
     window_duration_seconds Float64
 )
 ENGINE = MergeTree
-ORDER BY (cell_index, timestamp)
+ORDER BY (cell_index, window_start_time)
 SETTINGS index_granularity = 8192;
