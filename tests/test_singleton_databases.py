@@ -8,6 +8,7 @@ This test suite verifies:
 4. Backwards compatibility - both .service property and .get_service() work
 5. Empty window filtering - ClickHouseSink skips empty windows
 """
+
 import pytest
 import threading
 import time
@@ -21,12 +22,13 @@ class TestClickHouseSingleton:
     def setup_method(self):
         """Reset singleton state before each test."""
         from src.services import databases
+
         databases.ClickHouse._instance = None
 
     @pytest.fixture
     def mock_clickhouse_client(self):
         """Mock ClickHouse client for testing."""
-        with patch('clickhouse_connect.get_client') as mock:
+        with patch("clickhouse_connect.get_client") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -66,7 +68,7 @@ class TestClickHouseSingleton:
         # Before first access, instance should be None
         assert ClickHouse._instance is None
 
-        with patch('clickhouse_connect.get_client') as mock_client:
+        with patch("clickhouse_connect.get_client") as mock_client:
             mock = MagicMock()
             mock_client.return_value = mock
 
@@ -115,7 +117,9 @@ class TestClickHouseSingleton:
         assert len(instances) == n_threads
         first_instance = instances[0]
         for instance in instances:
-            assert instance is first_instance, "All threads should receive the same singleton instance"
+            assert instance is first_instance, (
+                "All threads should receive the same singleton instance"
+            )
 
     def test_thread_safety_with_thread_pool(self, mock_clickhouse_client):
         """Test thread safety using ThreadPoolExecutor for more realistic concurrency."""
@@ -134,12 +138,14 @@ class TestClickHouseSingleton:
             results = [f.result() for f in as_completed(futures)]
 
         # All instances should be the same object (same id)
-        assert len(set(instances)) == 1, "All workers should receive the same singleton instance"
+        assert len(set(instances)) == 1, (
+            "All workers should receive the same singleton instance"
+        )
 
     def test_singleton_persists_across_contexts(self, mock_clickhouse_client):
         """Test that singleton persists across different import contexts."""
         from src.services.databases import ClickHouse
-        from src.routers.v1.latency_router import ClickHouse as RouterClickHouse
+        from src.routers.v1.processed import ClickHouse as RouterClickHouse
 
         # Both imports should access the same singleton
         service1 = ClickHouse.service
@@ -154,12 +160,13 @@ class TestInfluxSingleton:
     def setup_method(self):
         """Reset singleton state before each test."""
         from src.services import databases
+
         databases.Influx._instance = None
 
     @pytest.fixture
     def mock_influx_client(self):
         """Mock InfluxDB client for testing."""
-        with patch('influxdb_client.InfluxDBClient') as mock:
+        with patch("influxdb_client.InfluxDBClient") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -199,7 +206,7 @@ class TestInfluxSingleton:
         # Before first access, instance should be None
         assert Influx._instance is None
 
-        with patch('influxdb_client.InfluxDBClient') as mock_client:
+        with patch("influxdb_client.InfluxDBClient") as mock_client:
             mock = MagicMock()
             mock_client.return_value = mock
 
@@ -252,6 +259,7 @@ class TestClickHouseSinkEmptyWindowFiltering:
     def setup_method(self):
         """Reset singleton state before each test."""
         from src.services import databases
+
         databases.ClickHouse._instance = None
 
     @pytest.fixture
@@ -262,7 +270,7 @@ class TestClickHouseSinkEmptyWindowFiltering:
     @pytest.fixture
     def mock_clickhouse_client(self):
         """Mock ClickHouse client for testing."""
-        with patch('clickhouse_connect.get_client') as mock:
+        with patch("clickhouse_connect.get_client") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -271,16 +279,19 @@ class TestClickHouseSinkEmptyWindowFiltering:
     def clickhouse_sink(self, mock_logger, mock_clickhouse_client):
         """Create ClickHouseSink with mocked service."""
         from src.sinks.clickhouse_sink import ClickHouseSink
+
         return ClickHouseSink(mock_logger)
 
-    def test_write_skips_empty_window(self, clickhouse_sink, mock_logger, mock_clickhouse_client):
+    def test_write_skips_empty_window(
+        self, clickhouse_sink, mock_logger, mock_clickhouse_client
+    ):
         """Test that empty windows (sample_count=0) are skipped."""
         empty_window_data = {
             "cell_index": 123,
             "window_start": 1733684400,
             "window_end": 1733684460,
             "sample_count": 0,
-            "rsrp": {"mean": None, "max": None, "min": None, "std": None}
+            "rsrp": {"mean": None, "max": None, "min": None, "std": None},
         }
 
         result = clickhouse_sink.write(empty_window_data)
@@ -289,7 +300,9 @@ class TestClickHouseSinkEmptyWindowFiltering:
         assert result is True
         mock_clickhouse_client.insert.assert_not_called()
 
-    def test_write_processes_valid_window(self, clickhouse_sink, mock_clickhouse_client):
+    def test_write_processes_valid_window(
+        self, clickhouse_sink, mock_clickhouse_client
+    ):
         """Test that valid windows are written normally."""
         valid_data = {
             "cell_index": 123,
@@ -299,7 +312,7 @@ class TestClickHouseSinkEmptyWindowFiltering:
             "network": "5G",
             "primary_bandwidth": 100.0,
             "ul_bandwidth": 50.0,
-            "rsrp": {"mean": -80.0, "max": -70.0, "min": -90.0, "std": 5.0}
+            "rsrp": {"mean": -80.0, "max": -70.0, "min": -90.0, "std": 5.0},
         }
 
         result = clickhouse_sink.write(valid_data)
@@ -308,23 +321,23 @@ class TestClickHouseSinkEmptyWindowFiltering:
         assert result is True
         mock_clickhouse_client.insert.assert_called_once()
 
-    def test_write_handles_missing_sample_count(self, clickhouse_sink, mock_clickhouse_client):
+    def test_write_handles_missing_sample_count(
+        self, clickhouse_sink, mock_clickhouse_client
+    ):
         """Test handling of missing sample_count field."""
         data_without_count = {
             "cell_index": 123,
             "window_start": 1733684400,
             "window_end": 1733684460,
             # sample_count is missing
-            "rsrp": {"mean": -80.0, "max": -70.0, "min": -90.0, "std": 5.0}
+            "rsrp": {"mean": -80.0, "max": -70.0, "min": -90.0, "std": 5.0},
         }
 
         result = clickhouse_sink.write(data_without_count)
 
-        # Should still write (sample_count defaults to 0 via .get(), which is falsy but we still write)
-        # Actually, with .get('sample_count') == 0 being falsy, the data dict doesn't have the key
-        # So .get() returns None which is falsy, but the check is specifically == 0
-        # Let's verify the behavior
-        assert result is True
+        # Should return False because sample_count is a required field
+        # The transform function will raise ValueError for missing required fields
+        assert result is False
 
 
 class TestInfluxSink:
@@ -333,6 +346,7 @@ class TestInfluxSink:
     def setup_method(self):
         """Reset singleton state before each test."""
         from src.services import databases
+
         databases.Influx._instance = None
 
     @pytest.fixture
@@ -343,7 +357,7 @@ class TestInfluxSink:
     @pytest.fixture
     def mock_influx_client(self):
         """Mock InfluxDB client for testing."""
-        with patch('influxdb_client.InfluxDBClient') as mock:
+        with patch("influxdb_client.InfluxDBClient") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -352,6 +366,7 @@ class TestInfluxSink:
     def influx_sink(self, mock_logger, mock_influx_client):
         """Create InfluxSink with mocked service."""
         from src.sinks.influx_sink import InfluxSink
+
         return InfluxSink(mock_logger)
 
     def test_sink_uses_singleton_service(self, influx_sink, mock_influx_client):
@@ -369,14 +384,16 @@ class TestInfluxSink:
         test_data = {
             "timestamp": "2024-01-01T12:00:00Z",
             "cell_index": 123,
-            "rsrp": -80
+            "rsrp": -80,
         }
 
-        result = influx_sink.write(test_data)
+        # Mock the write_data method on the service
+        with patch.object(influx_sink.service, "write_data") as mock_write:
+            result = influx_sink.write(test_data)
 
-        assert result is True
-        # Verify the service's write_api was called
-        influx_sink.service.write_api.write.assert_called()
+            assert result is True
+            # Verify the service's write_data was called with correct data
+            mock_write.assert_called_once_with(test_data)
 
 
 class TestServicePropertyDescriptor:
@@ -385,13 +402,14 @@ class TestServicePropertyDescriptor:
     def setup_method(self):
         """Reset singleton state before each test."""
         from src.services import databases
+
         databases.ClickHouse._instance = None
         databases.Influx._instance = None
 
     @pytest.fixture
     def mock_clickhouse_client(self):
         """Mock ClickHouse client for testing."""
-        with patch('clickhouse_connect.get_client') as mock:
+        with patch("clickhouse_connect.get_client") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
