@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from influxdb_client.client.write.point import Point
-from pydantic import ConfigDict, Field
 
 from src.configs.schema_conf import SchemaConf
 
@@ -55,6 +54,11 @@ class Raw:
             if isinstance(value, datetime):
                 return value
 
+            # Handle Unix timestamp (int/float)
+            if isinstance(value, (int, float)):
+                return datetime.fromtimestamp(value, tz=timezone.utc)
+
+            # Handle ISO format string
             return datetime.fromisoformat(str(value))
 
         try:

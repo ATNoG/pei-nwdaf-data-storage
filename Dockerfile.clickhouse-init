@@ -1,9 +1,0 @@
-FROM clickhouse/clickhouse-server:latest
-
-COPY init-clickhouse.sh /usr/local/bin/init-clickhouse.sh
-RUN chmod +x /usr/local/bin/init-clickhouse.sh
-
-# Copy SQL scripts into the image
-COPY sql/ /sql/
-
-ENTRYPOINT ["/usr/local/bin/init-clickhouse.sh"]
