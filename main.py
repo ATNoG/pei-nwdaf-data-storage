@@ -1,12 +1,13 @@
-import os
 import asyncio
-from threading import Thread
+import os
 from contextlib import asynccontextmanager
+from threading import Thread
+
 from fastapi import FastAPI
 
+from src.configs import load_all
 from src.routers.v1 import v1_router
 from src.services.databases import ClickHouse, Influx
-
 from src.sink import KafkaSinkManager
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
@@ -19,7 +20,7 @@ async def lifespan(app: FastAPI):
     # Initialize database connections (singleton, handles connection internally)
     Influx.service  # Access triggers lazy initialization
     ClickHouse.service  # Access triggers lazy initialization
-
+    load_all()
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
 
     def kafka_worker():
@@ -33,17 +34,10 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Kafka worker crashed: {e}")
 
-    kafka_thread = Thread(
-        target=kafka_worker,
-        daemon=True,
-        name="kafka-sink-thread"
-    )
+    kafka_thread = Thread(target=kafka_worker, daemon=True, name="kafka-sink-thread")
     kafka_thread.start()
 
-    print(
-        f"API started (Kafka connecting in background to "
-        f"{KAFKA_HOST}:{KAFKA_PORT})"
-    )
+    print(f"API started (Kafka connecting in background to {KAFKA_HOST}:{KAFKA_PORT})")
 
     yield
 
