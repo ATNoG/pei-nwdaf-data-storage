@@ -1,0 +1,12 @@
+# Optional/allowed extra fields for raw data points
+
+datarate: float
+mean_latency: float
+rsrp: float
+sinr: float
+rsrq: float
+direction: string
+network: string
+cqi: float
+primary_bandwidth: float
+ul_bandwidth: float

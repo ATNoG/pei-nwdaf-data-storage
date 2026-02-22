@@ -20,7 +20,9 @@ services:
     restart: unless-stopped
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.clickhouse
     container_name: clickhouse
     ports:
       - "${CLICKHOUSE_HTTP_PORT}:${CLICKHOUSE_HTTP_PORT}"
@@ -41,29 +43,13 @@ services:
       timeout: 3s
       retries: 5
 
-  clickhouse-init:
-    build:
-      context: .
-      dockerfile: Dockerfile.clickhouse-init
-    container_name: clickhouse-init
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-    environment:
-      - CLICKHOUSE_HOST=clickhouse
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
-    networks:
-      - nwdaf-network
-    restart: "no"
-
   data-storage:
     container_name: data-storage
     ports:
       - "8000:8000"
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     environment:
       - INFLUX_URL=http://influxdb:8086
       - INFLUX_TOKEN=${INFLUX_TOKEN}
