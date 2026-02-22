@@ -166,7 +166,7 @@ class TestInfluxSingleton:
     @pytest.fixture
     def mock_influx_client(self):
         """Mock InfluxDB client for testing."""
-        with patch("influxdb_client.InfluxDBClient") as mock:
+        with patch("src.services.influx.InfluxDBClient") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -206,7 +206,7 @@ class TestInfluxSingleton:
         # Before first access, instance should be None
         assert Influx._instance is None
 
-        with patch("influxdb_client.InfluxDBClient") as mock_client:
+        with patch("src.services.influx.InfluxDBClient") as mock_client:
             mock = MagicMock()
             mock_client.return_value = mock
 
@@ -357,7 +357,7 @@ class TestInfluxSink:
     @pytest.fixture
     def mock_influx_client(self):
         """Mock InfluxDB client for testing."""
-        with patch("influxdb_client.InfluxDBClient") as mock:
+        with patch("src.services.influx.InfluxDBClient") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
