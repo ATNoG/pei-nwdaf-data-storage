@@ -1,8 +1,8 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
-from fastapi.testclient import TestClient
+from unittest.mock import MagicMock, patch
 
+import pytest
+from fastapi.testclient import TestClient
 
 # Sample Unix timestamps for testing
 SAMPLE_START_TIME = int(datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp())
@@ -29,6 +29,7 @@ def mock_clickhouse_service():
 def test_client(mock_clickhouse_service):
     """Create a test client for the FastAPI app."""
     from fastapi import FastAPI
+
     from src.routers.v1 import v1_router
 
     app = FastAPI()
@@ -75,7 +76,7 @@ def sample_processed_latency_dict():
 class TestLatencyEndpoint:
     """Tests for the processed latency endpoint."""
 
-    def test_get_processed_latency_success(
+    def test_get_processed_data_success(
         self, test_client, mock_clickhouse_service, sample_processed_latency_dict
     ):
         """Test successful retrieval of processed latency data."""
@@ -107,7 +108,7 @@ class TestLatencyEndpoint:
         # Verify service was called correctly
         mock_clickhouse_service.query_processed_latency.assert_called_once()
 
-    def test_get_processed_latency_empty_result(
+    def test_get_processed_data_empty_result(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint with no matching data."""
@@ -126,7 +127,7 @@ class TestLatencyEndpoint:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_get_processed_latency_missing_required_params(
+    def test_get_processed_data_missing_required_params(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint with missing required parameters."""
@@ -138,7 +139,7 @@ class TestLatencyEndpoint:
 
         assert response.status_code == 422  # Validation error
 
-    def test_get_processed_latency_with_pagination(
+    def test_get_processed_data_with_pagination(
         self, test_client, mock_clickhouse_service, sample_processed_latency_dict
     ):
         """Test endpoint with pagination parameters."""
@@ -165,7 +166,7 @@ class TestLatencyEndpoint:
         assert call_kwargs["offset"] == 50
         assert call_kwargs["limit"] == 25
 
-    def test_get_processed_latency_invalid_limit(
+    def test_get_processed_data_invalid_limit(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint with invalid limit value."""
@@ -182,7 +183,7 @@ class TestLatencyEndpoint:
 
         assert response.status_code == 422  # Validation error
 
-    def test_get_processed_latency_invalid_offset(
+    def test_get_processed_data_invalid_offset(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint with negative offset."""
@@ -199,7 +200,7 @@ class TestLatencyEndpoint:
 
         assert response.status_code == 422  # Validation error
 
-    def test_get_processed_latency_service_error(
+    def test_get_processed_data_service_error(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint when service raises an exception."""
@@ -220,7 +221,7 @@ class TestLatencyEndpoint:
         assert response.status_code == 500
         assert "Database error" in response.json()["detail"]
 
-    def test_get_processed_latency_multiple_results(
+    def test_get_processed_data_multiple_results(
         self, test_client, mock_clickhouse_service, sample_processed_latency_dict
     ):
         """Test endpoint returning multiple results."""
@@ -242,7 +243,7 @@ class TestLatencyEndpoint:
         data = response.json()
         assert len(data) == 5
 
-    def test_get_processed_latency_default_pagination(
+    def test_get_processed_data_default_pagination(
         self, test_client, mock_clickhouse_service, sample_processed_latency_dict
     ):
         """Test endpoint uses default pagination values."""
@@ -267,7 +268,7 @@ class TestLatencyEndpoint:
         assert call_kwargs["offset"] == 0
         assert call_kwargs["limit"] == 100
 
-    def test_get_processed_latency_with_null_fields(
+    def test_get_processed_data_with_null_fields(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint with data containing null/optional fields."""
@@ -301,7 +302,7 @@ class TestLatencyEndpoint:
         assert data[0]["rsrp_mean"] is None
         assert data[0]["sample_count"] == 50
 
-    def test_get_processed_latency_invalid_datetime_format(
+    def test_get_processed_data_invalid_datetime_format(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint with invalid timestamp format."""

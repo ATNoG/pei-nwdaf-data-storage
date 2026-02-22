@@ -40,7 +40,7 @@ def get_latency_example():
 
 
 @router.get("")
-def get_processed_latency(
+def get_processed_data(
     start_time: int = Query(
         ..., description="Window start time (Unix timestamp in seconds)"
     ),
