@@ -5,10 +5,11 @@ from src.configs.conf import Conf
 
 logger = logging.getLogger("Config")
 
+
 class ClickhouseConf(Conf):
-    host:     str
-    port:     int
-    user:     str
+    host: str
+    port: int
+    user: str
     password: str
 
     _instance = None
@@ -26,9 +27,9 @@ class ClickhouseConf(Conf):
     @classmethod
     def load_env(cls, file: str = ".env") -> None:
 
-        cls.host     = os.getenv("CLICKHOUSE_HOST", "localhost")
-        cls.port     = int(os.getenv("CLICKHOUSE_PORT", "9000"))
-        cls.user     = os.getenv("CLICKHOUSE_USER", "default")
+        cls.host = os.getenv("CLICKHOUSE_HOST", "localhost")
+        cls.port = int(os.getenv("CLICKHOUSE_PORT", "9000"))
+        cls.user = os.getenv("CLICKHOUSE_USER", "default")
         cls.password = os.getenv("CLICKHOUSE_PASSWORD", "")
 
         cls._loaded = True

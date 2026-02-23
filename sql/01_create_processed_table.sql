@@ -1,13 +1,10 @@
 CREATE DATABASE IF NOT EXISTS analytics;
-
-CREATE TABLE IF NOT EXISTS analytics.processed_latency
+CREATE TABLE IF NOT EXISTS analytics.processed
 (
-    window_start_time DateTime64(3),
-    window_end_time DateTime64(3),
-    window_duration_seconds Float64,
-
     cell_index Int32,
-    network String,
+
+    network Nullable(String),
+    data_type Nullable(String),  -- e.g., 'latency', 'anomaly', etc.
 
     rsrp_mean Nullable(Float64),
     rsrp_max Nullable(Float64),
@@ -37,7 +34,10 @@ CREATE TABLE IF NOT EXISTS analytics.processed_latency
     primary_bandwidth Nullable(Float64),
     ul_bandwidth Nullable(Float64),
 
-    sample_count Int32
+    sample_count Int32,
+    window_start_time DateTime64(3),
+    window_end_time DateTime64(3),
+    window_duration_seconds Float64
 )
 ENGINE = MergeTree
 ORDER BY (cell_index, window_start_time)

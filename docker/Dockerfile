@@ -27,6 +27,7 @@ COPY requirements.txt ./
 RUN uv pip install --system -r requirements.txt
 
 COPY src/ ./src/
+COPY confs/ ./confs/
 COPY main.py .
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
