@@ -4,6 +4,7 @@ pipeline {
     stages {
         stage('Prepare Environment') {
             steps {
+                sh 'cp /var/lib/jenkins/.config/storage/* confs/'
                 sh 'cp /var/lib/jenkins/.env .env'
                 sh 'ls -la .env'
             }
