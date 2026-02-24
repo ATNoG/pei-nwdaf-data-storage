@@ -11,8 +11,6 @@ class Raw:
     def __init__(self, **data) -> None:
 
         core_fields = SchemaConf.get_core_fields()
-        extra_fields = SchemaConf.get_extra_fields()
-        allowed_fields = set(core_fields.keys()) | set(extra_fields.keys())
         self.tags = SchemaConf.get_tags()
 
         # validate core fields existence
@@ -20,7 +18,7 @@ class Raw:
             if field_name not in data:
                 raise ValueError(f"Missing core field: {field_name}")
 
-        filtered_data = {k: v for k, v in data.items() if k in allowed_fields}
+        filtered_data = {k: v for k, v in data.items()}
         self.data = self._validate_types(filtered_data)
 
         # Do not change the following if statement if timestamp is not ensured to be present in data
@@ -30,16 +28,14 @@ class Raw:
 
     def _validate_types(self, data: dict) -> dict:
         core_fields = SchemaConf.get_core_fields()
-        extra_fields = SchemaConf.get_extra_fields()
-        all_fields = {**core_fields, **extra_fields}
 
         validated = {}
         for key, value in data.items():
-            if value is None:
+            if value is None or key not in core_fields:
                 validated[key] = value
                 continue
 
-            expected_type = all_fields.get(key)
+            expected_type = core_fields.get(key)
             if expected_type:
                 validated[key] = self._cast_type(key, value, expected_type)
             else:
