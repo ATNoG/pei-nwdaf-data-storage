@@ -8,13 +8,14 @@ from src.services.clickhouse_query import QueryCH
 
 _FIELD_MAPPING = {"mean_latency": "latency"}
 
+_SKIP_KEYS = {"window_start", "window_end", "cell_index", "sample_count", "network"}
+
 
 def apply_field_mapping(field: str) -> str:
-
     return _FIELD_MAPPING.get(field, field)
 
 
-def transform_processor_output(data: dict, columns: set[str]) -> dict:
+def transform_processor_output(data: dict) -> dict:
     """
     Transform processor's nested output format to flat storage format.
     """
@@ -23,8 +24,26 @@ def transform_processor_output(data: dict, columns: set[str]) -> dict:
         if field not in data:
             raise ValueError(f"Missing required fields: {field}")
 
-    # mandatory fields
-    transformed = {
+    metrics: dict[str, float] = {}
+
+    for key, value in data.items():
+        if key in _SKIP_KEYS:
+            continue
+        if isinstance(value, dict):
+            base_name = apply_field_mapping(key)
+            for sub_key, sub_value in value.items():
+                if not isinstance(sub_value, dict):
+                    try:
+                        metrics[f"{base_name}_{sub_key}"] = float(sub_value)
+                    except (TypeError, ValueError):
+                        pass  # skip non-numeric sub-fields
+        else:
+            try:
+                metrics[key] = float(value)
+            except (TypeError, ValueError):
+                pass  # skip non-numeric flat fields (e.g. "type": "latency")
+
+    return {
         "cell_index": data["cell_index"],
         "sample_count": data["sample_count"],
         "window_start_time": datetime.fromtimestamp(
@@ -32,34 +51,15 @@ def transform_processor_output(data: dict, columns: set[str]) -> dict:
         ),
         "window_end_time": datetime.fromtimestamp(data["window_end"], tz=timezone.utc),
         "window_duration_seconds": float(data["window_end"] - data["window_start"]),
+        "network": data.get("network"),
+        "metrics": metrics,
     }
-
-    # process flatten and nested metrics
-    for key, value in data.items():
-        if key in transformed:
-            continue
-
-        if isinstance(value, dict):
-            base_name = apply_field_mapping(key)
-            for sub_key, sub_value in value.items():
-                if isinstance(sub_value, dict):
-                    # NOT SUPPORTED
-                    continue
-
-                transformed[f"{base_name}_{sub_key}"] = sub_value
-
-        else:
-            # flat field
-            transformed[key] = value
-
-    return {k: v for k, v in transformed.items() if k in columns}
 
 
 class ClickHouseService:
     def __init__(self) -> None:
         self.conf = ClickhouseConf()
         self.client: Client = None
-        self._columns: set[str] = None
 
     def connect(self):
         self.client = clickhouse_connect.get_client(
@@ -68,20 +68,17 @@ class ClickHouseService:
             username=self.conf.user,
             password=self.conf.password,
         )
-        result = self.client.query("DESCRIBE analytics.processed")
-        self._columns = {row[0] for row in result.result_rows}
 
-    def get_columns(self) -> set[str]:
-        return self._columns
+    def get_metric_keys(self) -> list[str]:
+        result = self.client.query(QueryCH.metric_keys)
+        return [row[0] for row in result.result_rows]
 
     def write_data(self, data: dict) -> None:
         """Write a single processed record to ClickHouse"""
         try:
-            transformed = transform_processor_output(data, columns=self._columns)
-
+            transformed = transform_processor_output(data)
             column_names = list(transformed.keys())
             values = [list(transformed.values())]
-
             self.client.insert(
                 "analytics.processed",
                 values,
@@ -94,17 +91,11 @@ class ClickHouseService:
     def write_batch(self, data_list: list[dict]) -> None:
         """Write multiple processed records to ClickHouse"""
         try:
-            transformed_list = [
-                transform_processor_output(d, columns=self._columns) for d in data_list
-            ]
-
+            transformed_list = [transform_processor_output(d) for d in data_list]
             if not transformed_list:
                 return
-
             column_names = list(transformed_list[0].keys())
-
             values = [list(d.values()) for d in transformed_list]
-
             self.client.insert(
                 "analytics.processed",
                 values,
@@ -134,9 +125,8 @@ class ClickHouseService:
             limit: Maximum number of records to return
 
         Returns:
-            List of dicts
+            List of dicts with metrics flattened to top-level keys
         """
-
         result = self.client.query(
             QueryCH.processed,
             parameters={
@@ -150,5 +140,8 @@ class ClickHouseService:
         )
 
         column_names = result.column_names
-
-        return [dict(zip(column_names, row)) for row in result.result_rows]
+        rows = [dict(zip(column_names, row)) for row in result.result_rows]
+        for row in rows:
+            metrics = row.pop("metrics", {})
+            row.update(metrics)
+        return rows
