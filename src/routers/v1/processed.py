@@ -17,24 +17,18 @@ def get_latency_example():
     This endpoint provides a sample of what the actual data format looks like,
     useful for API documentation and client development.
 
-    The example dynamically includes all columns from the ClickHouse table schema.
+    The example dynamically includes all known metric keys from ClickHouse.
     """
-    columns = ClickHouse.service.get_columns()
-
-    example = {}
-    for col in sorted(columns):
-        if "time" in col.lower():
-            example[col] = 1733828400
-        elif col == "cell_index":
-            example[col] = 0
-        elif col == "sample_count":
-            example[col] = 0
-        elif col in ("network", "data_type"):
-            example[col] = ""
-        elif col.endswith("_seconds"):
-            example[col] = 0.0
-        else:
-            example[col] = 0.0
+    example = {
+        "cell_index": 0,
+        "sample_count": 0,
+        "window_start_time": 1733828400,
+        "window_end_time": 1733828410,
+        "window_duration_seconds": 0.0,
+        "network": "",
+    }
+    for key in ClickHouse.service.get_metric_keys():
+        example[key] = 0.0
 
     return [example]
 
