@@ -11,3 +11,8 @@ class QueryCH:
     LIMIT {limit:Int32}
     OFFSET {offset:Int32}
     """
+
+    metric_keys = """
+    SELECT DISTINCT key
+    FROM analytics.metric_keys
+    """
