@@ -266,7 +266,7 @@ class TestClickHouseService:
         clickhouse_service.write_batch([])
         mock_clickhouse_client.insert.assert_not_called()
 
-    def test_query_processed_latency_returns_flat_dicts(
+    def test_query_processed_returns_flat_dicts(
         self, clickhouse_service, mock_clickhouse_client
     ):
         """Test that query results have metrics flattened to top-level keys."""
@@ -293,7 +293,7 @@ class TestClickHouseService:
         ]
         mock_clickhouse_client.query.return_value = mock_result
 
-        results = clickhouse_service.query_processed_latency(
+        results = clickhouse_service.query_processed(
             start_time=0,
             end_time=9999999999,
             cell_index=1,
@@ -311,7 +311,7 @@ class TestClickHouseService:
         assert row["cell_index"] == 1
         assert row["network"] == "5G"
 
-    def test_query_processed_latency_empty_result(
+    def test_query_processed_empty_result(
         self, clickhouse_service, mock_clickhouse_client
     ):
         """Test query with no results."""
@@ -320,7 +320,7 @@ class TestClickHouseService:
         mock_result.result_rows = []
         mock_clickhouse_client.query.return_value = mock_result
 
-        results = clickhouse_service.query_processed_latency(
+        results = clickhouse_service.query_processed(
             start_time=0,
             end_time=9999999999,
             cell_index=1,
@@ -331,7 +331,7 @@ class TestClickHouseService:
 
         assert len(results) == 0
 
-    def test_query_processed_latency_with_pagination(
+    def test_query_processed_with_pagination(
         self, clickhouse_service, mock_clickhouse_client
     ):
         """Test that pagination parameters are passed correctly."""
@@ -340,7 +340,7 @@ class TestClickHouseService:
         mock_result.result_rows = []
         mock_clickhouse_client.query.return_value = mock_result
 
-        clickhouse_service.query_processed_latency(
+        clickhouse_service.query_processed(
             start_time=0,
             end_time=9999999999,
             cell_index=1,
@@ -353,7 +353,7 @@ class TestClickHouseService:
         assert call_args[1]["parameters"]["offset"] == 50
         assert call_args[1]["parameters"]["limit"] == 25
 
-    def test_query_processed_latency_multiple_rows(
+    def test_query_processed_multiple_rows(
         self, clickhouse_service, mock_clickhouse_client
     ):
         """Test query returning multiple rows all with flattened metrics."""
@@ -371,7 +371,7 @@ class TestClickHouseService:
         ]
         mock_clickhouse_client.query.return_value = mock_result
 
-        results = clickhouse_service.query_processed_latency(
+        results = clickhouse_service.query_processed(
             start_time=0, end_time=9999999999, cell_index=1,
             window_duration_seconds=300, offset=0, limit=100,
         )

@@ -81,7 +81,7 @@ class TestLatencyEndpoint:
     ):
         """Test successful retrieval of processed latency data."""
         # Mock service response
-        mock_clickhouse_service.query_processed_latency.return_value = [
+        mock_clickhouse_service.query_processed.return_value = [
             sample_processed_latency_dict
         ]
 
@@ -106,13 +106,13 @@ class TestLatencyEndpoint:
         assert data[0]["sample_count"] == 100
 
         # Verify service was called correctly
-        mock_clickhouse_service.query_processed_latency.assert_called_once()
+        mock_clickhouse_service.query_processed.assert_called_once()
 
     def test_get_processed_data_empty_result(
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint with no matching data."""
-        mock_clickhouse_service.query_processed_latency.return_value = []
+        mock_clickhouse_service.query_processed.return_value = []
 
         response = test_client.get(
             "/api/v1/processed",
@@ -143,7 +143,7 @@ class TestLatencyEndpoint:
         self, test_client, mock_clickhouse_service, sample_processed_latency_dict
     ):
         """Test endpoint with pagination parameters."""
-        mock_clickhouse_service.query_processed_latency.return_value = [
+        mock_clickhouse_service.query_processed.return_value = [
             sample_processed_latency_dict
         ]
 
@@ -162,7 +162,7 @@ class TestLatencyEndpoint:
         assert response.status_code == 200
 
         # Verify pagination was passed to service
-        call_kwargs = mock_clickhouse_service.query_processed_latency.call_args[1]
+        call_kwargs = mock_clickhouse_service.query_processed.call_args[1]
         assert call_kwargs["offset"] == 50
         assert call_kwargs["limit"] == 25
 
@@ -204,7 +204,7 @@ class TestLatencyEndpoint:
         self, test_client, mock_clickhouse_service
     ):
         """Test endpoint when service raises an exception."""
-        mock_clickhouse_service.query_processed_latency.side_effect = Exception(
+        mock_clickhouse_service.query_processed.side_effect = Exception(
             "Database error"
         )
 
@@ -227,7 +227,7 @@ class TestLatencyEndpoint:
         """Test endpoint returning multiple results."""
         # Create multiple samples
         samples = [sample_processed_latency_dict for _ in range(5)]
-        mock_clickhouse_service.query_processed_latency.return_value = samples
+        mock_clickhouse_service.query_processed.return_value = samples
 
         response = test_client.get(
             "/api/v1/processed",
@@ -247,7 +247,7 @@ class TestLatencyEndpoint:
         self, test_client, mock_clickhouse_service, sample_processed_latency_dict
     ):
         """Test endpoint uses default pagination values."""
-        mock_clickhouse_service.query_processed_latency.return_value = [
+        mock_clickhouse_service.query_processed.return_value = [
             sample_processed_latency_dict
         ]
 
@@ -264,7 +264,7 @@ class TestLatencyEndpoint:
         assert response.status_code == 200
 
         # Verify default pagination values
-        call_kwargs = mock_clickhouse_service.query_processed_latency.call_args[1]
+        call_kwargs = mock_clickhouse_service.query_processed.call_args[1]
         assert call_kwargs["offset"] == 0
         assert call_kwargs["limit"] == 100
 
@@ -285,7 +285,7 @@ class TestLatencyEndpoint:
             "sample_count": 50,
         }
 
-        mock_clickhouse_service.query_processed_latency.return_value = [partial_data]
+        mock_clickhouse_service.query_processed.return_value = [partial_data]
 
         response = test_client.get(
             "/api/v1/processed",
