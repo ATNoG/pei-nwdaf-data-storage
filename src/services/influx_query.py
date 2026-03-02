@@ -15,3 +15,12 @@ class QueryIF:
         predicate: (r) => r._measurement == "{measurement}"
     )
     """
+
+    get_fields = """
+    import "influxdata/influxdb/schema"
+
+    schema.fieldKeys(
+        bucket: "{bucket}",
+        predicate: (r) => r._measurement == "{measurement}"
+    )
+    """
