@@ -105,7 +105,7 @@ class ClickHouseService:
         except Exception as e:
             raise Exception(f"Failed to batch write to ClickHouse: {e}")
 
-    def query_processed_latency(
+    def query_processed(
         self,
         start_time: int,
         end_time: int,

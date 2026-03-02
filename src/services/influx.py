@@ -74,6 +74,25 @@ class InfluxService:
         points = [r.to_point() for r in raw_list]
         self.write_api.write(bucket=self.conf.bucket, org = self.conf.org ,record = points)
 
+    def get_fields(self) -> list[str]:
+        """Returns a list of known field keys"""
+
+        query = QueryIF.get_fields.format(
+            bucket=self.conf.bucket,
+            measurement=RAW_MEASUREMENT
+        )
+
+        tables = self.query_api.query(query)
+
+        fields = []
+        for table in tables:
+            for record in table.records:
+                value = record.get_value()
+                if value:
+                    fields.append(value)
+
+        return fields
+
     def get_known_cells(self) -> list[int]:
         """Returns a list of known cell indexes"""
 

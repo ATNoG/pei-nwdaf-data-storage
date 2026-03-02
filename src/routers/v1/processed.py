@@ -70,7 +70,7 @@ def get_processed_data(
             "window_duration_seconds": window_duration_seconds,
         }
 
-        results = ClickHouse.service.query_processed_latency(**query_params)
+        results = ClickHouse.service.query_processed(**query_params)
 
         return results
 
