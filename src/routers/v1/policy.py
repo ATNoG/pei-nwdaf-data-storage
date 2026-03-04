@@ -9,7 +9,7 @@ from src.services.databases import ClickHouse, Influx
 router = APIRouter()
 
 
-@app.get("/fields")
+@router.get("/fields")
 def get_available_fields():
     """
     Get available fields from InfluxDB and ClickHouse.
