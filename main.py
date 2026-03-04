@@ -10,7 +10,7 @@ from src.routers.v1 import v1_router
 from src.services.databases import ClickHouse, Influx
 from src.sink import KafkaSinkManager
 
-from policy_client import PolicyClient
+from client import PolicyClient
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
