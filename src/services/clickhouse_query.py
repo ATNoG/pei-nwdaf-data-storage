@@ -17,7 +17,7 @@ class QueryCH:
         *
     FROM analytics.processed
     WHERE cell_index = {cell_index:Int32}
-      AND src_ip = {src_ip:String}
+      AND ip_src = {ip_src:String}
       AND window_duration_seconds = {window_duration_seconds:Int32}
       AND toUnixTimestamp(window_start_time) >= {start_time:Int64}
       AND toUnixTimestamp(window_end_time) <= {end_time:Int64}
