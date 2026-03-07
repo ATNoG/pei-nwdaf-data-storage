@@ -8,7 +8,7 @@ from src.services.clickhouse_query import QueryCH
 
 _FIELD_MAPPING = {"mean_latency": "latency"}
 
-_SKIP_KEYS = {"window_start", "window_end", "cell_index", "sample_count", "network"}
+_SKIP_KEYS = {"window_start", "window_end", "cell_index", "src_ip", "sample_count", "network"}
 
 
 def apply_field_mapping(field: str) -> str:
@@ -45,6 +45,7 @@ def transform_processor_output(data: dict) -> dict:
 
     return {
         "cell_index": data["cell_index"],
+        "src_ip": data.get("src_ip"),
         "sample_count": data["sample_count"],
         "window_start_time": datetime.fromtimestamp(
             data["window_start"], tz=timezone.utc
@@ -113,6 +114,7 @@ class ClickHouseService:
         window_duration_seconds: int,
         offset: int,
         limit: int,
+        src_ip: str | None = None,
     ) -> list[dict]:
         """
         Query processed latency data from ClickHouse.
@@ -123,21 +125,27 @@ class ClickHouseService:
             cell_index: Filter by specific cell index
             offset: Number of records to skip
             limit: Maximum number of records to return
+            src_ip: Optional source IP filter
 
         Returns:
             List of dicts with metrics flattened to top-level keys
         """
-        result = self.client.query(
-            QueryCH.processed,
-            parameters={
-                "start_time": start_time,
-                "end_time": end_time,
-                "cell_index": cell_index,
-                "offset": offset,
-                "limit": limit,
-                "window_duration_seconds": window_duration_seconds,
-            },
-        )
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "cell_index": cell_index,
+            "offset": offset,
+            "limit": limit,
+            "window_duration_seconds": window_duration_seconds,
+        }
+
+        if src_ip is not None:
+            query = QueryCH.processed_by_ip
+            params["src_ip"] = src_ip
+        else:
+            query = QueryCH.processed
+
+        result = self.client.query(query, parameters=params)
 
         column_names = result.column_names
         rows = [dict(zip(column_names, row)) for row in result.result_rows]

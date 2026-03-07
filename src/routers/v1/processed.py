@@ -21,6 +21,7 @@ def get_latency_example():
     """
     example = {
         "cell_index": 0,
+        "src_ip": None,
         "sample_count": 0,
         "window_start_time": 1733828400,
         "window_end_time": 1733828410,
@@ -45,6 +46,7 @@ def get_processed_data(
     window_duration_seconds: int = Query(
         ..., description="Duration of the target windows"
     ),
+    src_ip: str | None = Query(None, description="Source IP filter (optional)"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
         100, ge=1, le=1000, description="Maximum number of records to return"
@@ -68,6 +70,7 @@ def get_processed_data(
             "offset": offset,
             "limit": limit,
             "window_duration_seconds": window_duration_seconds,
+            "src_ip": src_ip,
         }
 
         results = ClickHouse.service.query_processed(**query_params)
