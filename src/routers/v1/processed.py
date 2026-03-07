@@ -46,7 +46,7 @@ def get_processed_data(
     window_duration_seconds: int = Query(
         ..., description="Duration of the target windows"
     ),
-    ip_src: str | None = Query(None, description="Source IP filter (optional)"),
+    ip_src: str | None = Query(None, description="Source IP filter: omit for cell-level only, '*' for all per-IP rows, or a specific IP"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
         100, ge=1, le=1000, description="Maximum number of records to return"

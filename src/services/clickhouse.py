@@ -139,7 +139,9 @@ class ClickHouseService:
             "window_duration_seconds": window_duration_seconds,
         }
 
-        if ip_src is not None:
+        if ip_src == "*":
+            query = QueryCH.processed_all_ips
+        elif ip_src is not None:
             query = QueryCH.processed_by_ip
             params["ip_src"] = ip_src
         else:
