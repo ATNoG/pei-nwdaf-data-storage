@@ -9,6 +9,7 @@ class QueryCH:
       AND toUnixTimestamp(window_start_time) >= {start_time:Int64}
       AND toUnixTimestamp(window_end_time) <= {end_time:Int64}
     ORDER BY window_end_time DESC
+    LIMIT 1 BY cell_index, window_start_time, window_duration_seconds
     LIMIT {limit:Int32}
     OFFSET {offset:Int32}
     """
@@ -23,6 +24,7 @@ class QueryCH:
       AND toUnixTimestamp(window_start_time) >= {start_time:Int64}
       AND toUnixTimestamp(window_end_time) <= {end_time:Int64}
     ORDER BY window_end_time DESC
+    LIMIT 1 BY cell_index, ip_src, window_start_time, window_duration_seconds
     LIMIT {limit:Int32}
     OFFSET {offset:Int32}
     """
@@ -37,6 +39,7 @@ class QueryCH:
       AND toUnixTimestamp(window_start_time) >= {start_time:Int64}
       AND toUnixTimestamp(window_end_time) <= {end_time:Int64}
     ORDER BY window_end_time DESC
+    LIMIT 1 BY cell_index, ip_src, window_start_time, window_duration_seconds
     LIMIT {limit:Int32}
     OFFSET {offset:Int32}
     """
