@@ -2,6 +2,7 @@ CREATE DATABASE IF NOT EXISTS analytics;
 CREATE TABLE IF NOT EXISTS analytics.processed
 (
     cell_index              Int32,
+    ip_src                  Nullable(String),
     sample_count            Int32,
     window_start_time       DateTime64(3),
     window_end_time         DateTime64(3),
