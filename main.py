@@ -10,7 +10,7 @@ from src.routers.v1 import v1_router
 from src.services.databases import ClickHouse, Influx
 from src.sink import KafkaSinkManager
 
-from client import PolicyClient
+from policy_client import PolicyClient
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
@@ -21,9 +21,27 @@ POLICY_COMPONENT_ID = os.getenv("POLICY_COMPONENT_ID", "data-storage")
 POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
 POLICY_FAILOPEN = os.getenv("POLICY_FAILOPEN", "true").lower() == "true"
 
+
+def get_all_storage_fields() -> list[str]:
+    """Get all field names from both InfluxDB and ClickHouse."""
+    influx_fields = Influx.service.get_fields()
+    clickhouse_fields = ClickHouse.service.get_metric_keys()
+
+    # Combine and deduplicate while preserving order
+    seen = set()
+    all_fields = []
+    for field_list in [influx_fields, clickhouse_fields]:
+        for field in field_list:
+            if field not in seen:
+                seen.add(field)
+                all_fields.append(field)
+    return all_fields
+
+
 policy_client = PolicyClient(
     service_url=POLICY_SERVICE_URL,
     component_id=POLICY_COMPONENT_ID,
+    fields=get_all_storage_fields,
     enable_policy=POLICY_ENABLED,
     fail_open=POLICY_FAILOPEN
 )
@@ -38,22 +56,36 @@ async def lifespan(app: FastAPI):
     # We may not want policy enabled, so we encase it in an if
     if POLICY_ENABLED:
         try:
-            await Influx.service.connect()
-            await ClickHouse.service.connect()
+            print("Connecting to InfluxDB...")
+            Influx.service.connect()
+            print("InfluxDB connected")
 
-            await policy_client.register_component(
+            print("Connecting to ClickHouse...")
+            ClickHouse.service.connect()
+            print("ClickHouse connected")
+
+            # Get fields after services are connected
+            print("Getting fields from services...")
+            influx_fields = Influx.service.get_fields()
+            clickhouse_fields = ClickHouse.service.get_metric_keys()
+            print(f"Got {len(influx_fields)} Influx fields, {len(clickhouse_fields)} ClickHouse fields")
+
+            print("Registering with Policy Service...")
+            result = await policy_client.register_component(
                 component_type="storage",
-                role="Storage",
-                data_columns=[],
+                role=os.getenv("POLICY_ROLENAME", "Storage"),
+                data_columns=get_all_storage_fields(),
                 auto_create_attributes=False,
                 allowed_fields={
-                    "data-storage:influx": Influx.service.get_fields(),
-                    "data-storage:clickhouse": ClickHouse.service.get_metric_keys(),
+                    "data-storage:influx": influx_fields,
+                    "data-storage:clickhouse": clickhouse_fields,
                 }
             )
-            print("Registered with Policy Service")
+            print(f"Registration result: {result}")
         except Exception as e:
-            print(f"Warning: Failed ot register with Policy Service: {e}")
+            import traceback
+            print(f"Warning: Failed to register with Policy Service: {e}")
+            traceback.print_exc()
 
     sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT, policy_client)
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Optional
 
@@ -91,16 +92,11 @@ class KafkaSinkManager:
             return data
 
         try:
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    raise RuntimeError("Loop is closed")
+            # Use sync wrapper for policy processing
+            from policy_client import SyncPolicyClient
+            sync_client = SyncPolicyClient(self.policy_client)
 
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            result = self.policy_client.process_data(
+            result = sync_client.process_data(
                 source_id="kafka",
                 sink_id=sink_id,
                 data=data,
