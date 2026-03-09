@@ -76,7 +76,8 @@ class TestClickHouseSingleton:
             service = ClickHouse.get_service()
             assert service is not None
             assert ClickHouse._instance is not None
-            mock_client.assert_called_once()
+            # Pool-based: get_client is called pool_size times
+            assert mock_client.call_count == service._pool_size
 
     def test_connect_called_on_initialization(self, mock_clickhouse_client):
         """Test that connect() is called during initialization."""
@@ -86,9 +87,8 @@ class TestClickHouseSingleton:
         # Create service instance
         service = ClickHouse.get_service()
 
-        # Verify the service has a client (meaning connect was called)
-        assert service.client is not None
-        assert service.client == mock_clickhouse_client
+        # Verify the pool is populated (meaning connect was called)
+        assert service._pool.qsize() == service._pool_size
 
     def test_thread_safety_concurrent_access(self, mock_clickhouse_client):
         """Test that singleton is thread-safe under concurrent access."""

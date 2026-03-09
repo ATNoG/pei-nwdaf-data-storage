@@ -192,10 +192,10 @@ class TestClickHouseService:
         assert service.conf is not None
 
     def test_connect(self, mock_clickhouse_client):
-        """Test connecting to ClickHouse."""
-        service = ClickHouseService()
+        """Test connecting to ClickHouse creates a connection pool."""
+        service = ClickHouseService(pool_size=2)
         service.connect()
-        assert service.client == mock_clickhouse_client
+        assert service._pool.qsize() == 2
 
     def test_get_metric_keys(self, clickhouse_service, mock_clickhouse_client):
         """Test retrieving known metric keys from ClickHouse."""
