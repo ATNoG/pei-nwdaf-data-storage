@@ -3,10 +3,9 @@ from src.services.databases import ClickHouse
 
 
 class ClickHouseSink(Sink):
-    """Sink for writing processed data to ClickHouse using a singleton connection."""
+    """Sink for writing processed data to ClickHouse using the shared connection pool."""
 
     def __init__(self, logger):
-        # Use the shared singleton from databases.py
         self.service = ClickHouse.get_service()
         self.logger = logger
         logger.info("ClickHouse sink initialized")

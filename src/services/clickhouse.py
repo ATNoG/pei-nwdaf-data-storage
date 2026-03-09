@@ -1,4 +1,6 @@
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from queue import Queue
 
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client
@@ -58,21 +60,37 @@ def transform_processor_output(data: dict) -> dict:
 
 
 class ClickHouseService:
-    def __init__(self) -> None:
+    def __init__(self, pool_size: int = 4) -> None:
         self.conf = ClickhouseConf()
-        self.client: Client = None
+        self._pool: Queue[Client] = Queue(maxsize=pool_size)
+        self._pool_size = pool_size
 
     def connect(self):
-        self.client = clickhouse_connect.get_client(
+        """Create the connection pool."""
+        for _ in range(self._pool_size):
+            self._pool.put(self._create_client())
+
+    def _create_client(self) -> Client:
+        return clickhouse_connect.get_client(
             host=self.conf.host,
             port=self.conf.port,
             username=self.conf.user,
             password=self.conf.password,
         )
 
+    @contextmanager
+    def _get_client(self):
+        """Borrow a client from the pool, return it when done."""
+        client = self._pool.get()
+        try:
+            yield client
+        finally:
+            self._pool.put(client)
+
     def get_metric_keys(self) -> list[str]:
-        result = self.client.query(QueryCH.metric_keys)
-        return [row[0] for row in result.result_rows]
+        with self._get_client() as client:
+            result = client.query(QueryCH.metric_keys)
+            return [row[0] for row in result.result_rows]
 
     def write_data(self, data: dict) -> None:
         """Write a single processed record to ClickHouse"""
@@ -80,12 +98,13 @@ class ClickHouseService:
             transformed = transform_processor_output(data)
             column_names = list(transformed.keys())
             values = [list(transformed.values())]
-            self.client.insert(
-                "analytics.processed",
-                values,
-                column_names=column_names,
-                settings={"async_insert": 1, "wait_for_async_insert": 0},
-            )
+            with self._get_client() as client:
+                client.insert(
+                    "analytics.processed",
+                    values,
+                    column_names=column_names,
+                    settings={"async_insert": 1, "wait_for_async_insert": 0},
+                )
         except Exception as e:
             raise Exception(f"Failed to write to ClickHouse: {e}")
 
@@ -97,12 +116,13 @@ class ClickHouseService:
                 return
             column_names = list(transformed_list[0].keys())
             values = [list(d.values()) for d in transformed_list]
-            self.client.insert(
-                "analytics.processed",
-                values,
-                column_names=column_names,
-                settings={"async_insert": 1, "wait_for_async_insert": 0},
-            )
+            with self._get_client() as client:
+                client.insert(
+                    "analytics.processed",
+                    values,
+                    column_names=column_names,
+                    settings={"async_insert": 1, "wait_for_async_insert": 0},
+                )
         except Exception as e:
             raise Exception(f"Failed to batch write to ClickHouse: {e}")
 
@@ -147,7 +167,8 @@ class ClickHouseService:
         else:
             query = QueryCH.processed
 
-        result = self.client.query(query, parameters=params)
+        with self._get_client() as client:
+            result = client.query(query, parameters=params)
 
         column_names = result.column_names
         rows = [dict(zip(column_names, row)) for row in result.result_rows]
