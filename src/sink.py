@@ -35,7 +35,10 @@ class KafkaSinkManager:
             logger.error(f"Failed to parse message: {e}")
             return data
 
-        sink_id = f"{self.policy_client._async_client.component_id}"
+        if self.policy_client is not None:
+            sink_id = f"{self.policy_client._async_client.component_id}"
+        else:
+            sink_id = "data-storage"
         if topic == "network.data.ingested":
             sink_id += ":influx"
             # Message is already the raw data we need
