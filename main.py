@@ -10,18 +10,112 @@ from src.routers.v1 import v1_router
 from src.services.databases import ClickHouse, Influx
 from src.sink import KafkaSinkManager
 
+from policy_client import PolicyClient, SyncPolicyClient
+
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
 KAFKA_TOPICS = ["network.data.ingested", "network.data.processed"]
 
+POLICY_SERVICE_URL = os.getenv("POLICY_SERVICE_URL", "http://policy-service:8000")
+POLICY_COMPONENT_ID = os.getenv("POLICY_COMPONENT_ID", "data-storage")
+POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
+POLICY_FAILOPEN = os.getenv("POLICY_FAILOPEN", "true").lower() == "true"
+
+# Runtime field discovery - updated when data flows through
+_discovered_fields: set[str] = set()
+
+
+def get_discovered_fields() -> list[str]:
+    """Get all discovered field names."""
+    return list(_discovered_fields)
+
+
+def get_all_storage_fields() -> list[str]:
+    """Get all field names from both InfluxDB and ClickHouse."""
+    # Use discovered fields first, fallback to database queries
+    if _discovered_fields:
+        return list(_discovered_fields)
+
+    influx_fields = Influx.service.get_fields() if Influx.service else []
+    clickhouse_fields = ClickHouse.service.get_metric_keys() if ClickHouse.service else []
+
+    # Combine and deduplicate while preserving order
+    seen = set()
+    all_fields = []
+    for field_list in [influx_fields, clickhouse_fields]:
+        for field in field_list:
+            if field not in seen:
+                seen.add(field)
+                all_fields.append(field)
+    return all_fields
+
+
+# Create async client for registration (in async context)
+_async_client = PolicyClient(
+    service_url=POLICY_SERVICE_URL,
+    component_id=POLICY_COMPONENT_ID,
+    fields=get_all_storage_fields,
+    enable_policy=POLICY_ENABLED,
+    fail_open=POLICY_FAILOPEN,
+    heartbeat_interval=30,
+)
+# Create sync client for use in KafkaSinkManager (runs in thread with no event loop)
+policy_client = SyncPolicyClient(_async_client)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Store policy client in app state for router access
+    app.state.policy_client = policy_client
+
     # Initialize database connections (singleton, handles connection internally)
     Influx.service  # Access triggers lazy initialization
     ClickHouse.service  # Access triggers lazy initialization
     load_all()
-    sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT)
+
+    # We may not want policy enabled, so we encase it in an if
+    if POLICY_ENABLED:
+        try:
+            print("Connecting to InfluxDB...")
+            Influx.service.connect()
+            print("InfluxDB connected")
+
+            print("Connecting to ClickHouse...")
+            ClickHouse.service.connect()
+            print("ClickHouse connected")
+
+            # Get fields after services are connected
+            print("Getting fields from services...")
+            influx_fields = Influx.service.get_fields()
+            clickhouse_fields = ClickHouse.service.get_metric_keys()
+            print(f"Got {len(influx_fields)} Influx fields, {len(clickhouse_fields)} ClickHouse fields")
+
+            print("Registering with Policy Service...")
+            # Combine all storage fields for processors
+            all_storage_fields = influx_fields + clickhouse_fields
+
+            result = await _async_client.register_component(
+                component_type="storage",
+                role=os.getenv("POLICY_ROLENAME", "Storage"),
+                data_columns=get_all_storage_fields(),
+                auto_create_attributes=False,
+                allowed_fields={
+                    "data-storage:influx": influx_fields,
+                    "data-storage:clickhouse": clickhouse_fields,
+                    # Explicitly add processors as sinks so field discovery works
+                    "data-processor-60s": all_storage_fields,
+                    "data-processor-300s": all_storage_fields,
+                    "*": all_storage_fields,  # Wildcard for any other sink
+                }
+            )
+            print(f"Registration result: {result}")
+            # Keep registration alive across Policy restarts
+            await _async_client.start_heartbeat()
+        except Exception as e:
+            import traceback
+            print(f"Warning: Failed to register with Policy Service: {e}")
+            traceback.print_exc()
+
+    sink_manager = KafkaSinkManager(KAFKA_HOST, KAFKA_PORT, policy_client)
 
     def kafka_worker():
         """
@@ -40,6 +134,8 @@ async def lifespan(app: FastAPI):
     print(f"API started (Kafka connecting in background to {KAFKA_HOST}:{KAFKA_PORT})")
 
     yield
+
+    await _async_client.stop_heartbeat()
 
     try:
         await sink_manager.stop()
