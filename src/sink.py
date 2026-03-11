@@ -35,7 +35,7 @@ class KafkaSinkManager:
             logger.error(f"Failed to parse message: {e}")
             return data
 
-        sink_id = f"{self.policy_client.component_id}"
+        sink_id = f"{self.policy_client._async_client.component_id}"
         if topic == "network.data.ingested":
             sink_id += ":influx"
             # Message is already the raw data we need
@@ -88,15 +88,12 @@ class KafkaSinkManager:
         The naming standard should use ":" between the concrete component and the specified sink
         Example: sink_id = "data-storage:influx"
         """
-        if self.policy_client is None or not self.policy_client.enable_policy:
+        if self.policy_client is None or not self.policy_client._async_client.enable_policy:
             return data
 
         try:
-            # Use sync wrapper for policy processing
-            from policy_client import SyncPolicyClient
-            sync_client = SyncPolicyClient(self.policy_client)
-
-            result = sync_client.process_data(
+            # Use the sync policy client to process data
+            result = self.policy_client.process_data(
                 source_id="kafka",
                 sink_id=sink_id,
                 data=data,
@@ -106,11 +103,11 @@ class KafkaSinkManager:
             if result.allowed:
                 return result.data
             else:
-                logger.warning(f"Policy blocked: sink={sink_id}, topic={topic}")
+                logger.warning(f"Policy blocked: sink={sink_id}, reason={result.reason}")
                 return {}
 
         except Exception as e:
-            if self.policy_client.fail_open:
+            if self.policy_client._async_client.fail_open:
                 logger.warning(f"Policy failed for {sink_id}, allowing (fail_open): {e}")
                 return data
             else:
