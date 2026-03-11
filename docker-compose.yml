@@ -61,6 +61,11 @@ services:
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
       - KAFKA_HOST=kafka
       - KAFKA_PORT=9092
+      - POLICY_SERVICE_URL=${POLICY_SERVICE_URL}
+      - POLICY_COMPONENT_ID=${POLICY_COMPONENT_ID}
+      - POLICY_ENABLED=${POLICY_ENABLED}
+      - POLICY_FAILOPEN=${POLICY_FAILOPEN}
+      - POLICY_ROLENAME=${POLICY_ROLENAME}
     depends_on:
       clickhouse:
         condition: service_started
