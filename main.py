@@ -56,7 +56,8 @@ _async_client = PolicyClient(
     component_id=POLICY_COMPONENT_ID,
     fields=get_all_storage_fields,
     enable_policy=POLICY_ENABLED,
-    fail_open=POLICY_FAILOPEN
+    fail_open=POLICY_FAILOPEN,
+    heartbeat_interval=30,
 )
 # Create sync client for use in KafkaSinkManager (runs in thread with no event loop)
 policy_client = SyncPolicyClient(_async_client)
@@ -107,6 +108,8 @@ async def lifespan(app: FastAPI):
                 }
             )
             print(f"Registration result: {result}")
+            # Keep registration alive across Policy restarts
+            await _async_client.start_heartbeat()
         except Exception as e:
             import traceback
             print(f"Warning: Failed to register with Policy Service: {e}")
@@ -131,6 +134,8 @@ async def lifespan(app: FastAPI):
     print(f"API started (Kafka connecting in background to {KAFKA_HOST}:{KAFKA_PORT})")
 
     yield
+
+    await _async_client.stop_heartbeat()
 
     try:
         await sink_manager.stop()
