@@ -23,8 +23,9 @@ RUN mkdir utils && cd utils \
 
 
 # Install dependencies using uv
-COPY requirements.txt ./
-RUN uv pip install --system -r requirements.txt
+COPY pyproject.toml ./
+COPY uv.lock ./
+RUN uv sync --no-install-project
 
 COPY src/ ./src/
 COPY confs/ ./confs/
@@ -32,4 +33,4 @@ COPY main.py .
 
 COPY . .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-project", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
