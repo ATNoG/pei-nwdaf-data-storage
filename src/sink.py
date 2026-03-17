@@ -33,6 +33,14 @@ class KafkaSinkManager:
         self._buffer_lock = threading.Lock()
         self._last_flush = time.monotonic()
 
+        self._flush_thread = threading.Thread(target=self._periodic_flush, daemon=True)
+        self._flush_thread.start()
+
+    def _periodic_flush(self):
+        while True:
+            time.sleep(BATCH_TIMEOUT)
+            self._maybe_flush()
+
     def _flush_influx(self):
         with self._buffer_lock:
             batch = self._influx_buffer
