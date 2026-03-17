@@ -16,6 +16,7 @@ def mock_influx_sink(mock_logger):
     with patch('src.sink.InfluxSink') as mock:
         instance = mock.return_value
         instance.write = MagicMock(return_value=True)
+        instance.write_batch = MagicMock(return_value=True)
         yield instance
 
 
@@ -66,14 +67,16 @@ class TestKafkaSinkManager:
         }
 
         result = kafka_sink_manager.route_message(test_data)
+        kafka_sink_manager._flush_influx()
 
         assert result == test_data
-        mock_influx_sink.write.assert_called_once()
+        mock_influx_sink.write_batch.assert_called_once()
 
         # Verify the correct data was passed
-        call_args = mock_influx_sink.write.call_args[0][0]
-        assert call_args["timestamp"] == "2024-01-01T12:00:00Z"
-        assert call_args["datarate"] == 100.5
+        batch = mock_influx_sink.write_batch.call_args[0][0]
+        assert len(batch) == 1
+        assert batch[0]["timestamp"] == "2024-01-01T12:00:00Z"
+        assert batch[0]["datarate"] == 100.5
 
     def test_route_message_processed_data_success(self, kafka_sink_manager, mock_clickhouse_sink):
         """Test routing network.data.processed messages to ClickHouse."""
@@ -122,8 +125,8 @@ class TestKafkaSinkManager:
         mock_clickhouse_sink.write.assert_not_called()
 
     def test_route_message_influx_write_failure(self, kafka_sink_manager, mock_influx_sink):
-        """Test handling of InfluxDB write failure."""
-        mock_influx_sink.write.return_value = False
+        """Test handling of InfluxDB batch write failure."""
+        mock_influx_sink.write_batch.return_value = False
 
         test_data = {
             "topic": "network.data.ingested",
@@ -131,9 +134,10 @@ class TestKafkaSinkManager:
         }
 
         result = kafka_sink_manager.route_message(test_data)
+        kafka_sink_manager._flush_influx()
 
         assert result == test_data
-        mock_influx_sink.write.assert_called_once()
+        mock_influx_sink.write_batch.assert_called_once()
 
     def test_route_message_clickhouse_write_failure(self, kafka_sink_manager, mock_clickhouse_sink):
         """Test handling of ClickHouse write failure."""
@@ -179,7 +183,7 @@ class TestKafkaSinkManager:
         await kafka_sink_manager.stop()
 
     def test_multiple_messages_same_topic(self, kafka_sink_manager, mock_influx_sink):
-        """Test routing multiple messages to the same topic."""
+        """Test routing multiple messages to the same topic are batched."""
         messages = [
             {
                 "topic": "network.data.ingested",
@@ -191,7 +195,11 @@ class TestKafkaSinkManager:
         for msg in messages:
             kafka_sink_manager.route_message(msg)
 
-        assert mock_influx_sink.write.call_count == 3
+        kafka_sink_manager._flush_influx()
+
+        mock_influx_sink.write_batch.assert_called_once()
+        batch = mock_influx_sink.write_batch.call_args[0][0]
+        assert len(batch) == 3
 
     def test_message_with_all_fields(self, kafka_sink_manager, mock_influx_sink):
         """Test routing message with all expected fields."""
@@ -220,10 +228,32 @@ class TestKafkaSinkManager:
         }
 
         kafka_sink_manager.route_message(test_data)
+        kafka_sink_manager._flush_influx()
 
-        mock_influx_sink.write.assert_called_once()
-        call_args = mock_influx_sink.write.call_args[0][0]
+        mock_influx_sink.write_batch.assert_called_once()
+        batch = mock_influx_sink.write_batch.call_args[0][0]
+        assert len(batch) == 1
 
         # Verify all fields are passed correctly
         for key, value in complete_data.items():
-            assert call_args[key] == value
+            assert batch[0][key] == value
+
+    def test_route_message_batch(self, kafka_sink_manager, mock_influx_sink):
+        """Test routing a batch (JSON array) message to InfluxDB."""
+        batch_data = [
+            {"timestamp": "2024-01-01T12:00:00Z", "datarate": 100},
+            {"timestamp": "2024-01-01T12:00:01Z", "datarate": 200},
+        ]
+        test_data = {
+            "topic": "network.data.ingested",
+            "content": json.dumps(batch_data)
+        }
+
+        kafka_sink_manager.route_message(test_data)
+        kafka_sink_manager._flush_influx()
+
+        mock_influx_sink.write_batch.assert_called_once()
+        batch = mock_influx_sink.write_batch.call_args[0][0]
+        assert len(batch) == 2
+        assert batch[0]["datarate"] == 100
+        assert batch[1]["datarate"] == 200
