@@ -6,7 +6,7 @@ services:
     ports:
       - "${INFLUX_PORT}:${INFLUX_PORT}"
     environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_MODE=${INFLUX_INIT_MODE}
       - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_ADMIN_USER}
       - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_ADMIN_PASSWORD}
       - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
@@ -62,10 +62,10 @@ services:
       - KAFKA_HOST=${KAFKA_HOST:-kafka}
       - KAFKA_PORT=9092
       - POLICY_SERVICE_URL=${POLICY_SERVICE_URL}
-      - POLICY_COMPONENT_ID=${POLICY_COMPONENT_ID}
+      - POLICY_COMPONENT_ID=data-storage
       - POLICY_ENABLED=${POLICY_ENABLED}
       - POLICY_FAILOPEN=${POLICY_FAILOPEN}
-      - POLICY_ROLENAME=${POLICY_ROLENAME}
+      - POLICY_ROLENAME=storage
     depends_on:
       clickhouse:
         condition: service_started
