@@ -51,15 +51,15 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     environment:
-      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_URL=${INFLUX_URL:-http://influxdb:8086}
       - INFLUX_TOKEN=${INFLUX_TOKEN}
       - INFLUX_ORG=${INFLUX_ORG}
       - INFLUX_BUCKET=${INFLUX_BUCKET}
-      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-clickhouse}
       - CLICKHOUSE_PORT=${CLICKHOUSE_HTTP_PORT}
       - CLICKHOUSE_USER=${CLICKHOUSE_USER}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
-      - KAFKA_HOST=kafka
+      - KAFKA_HOST=${KAFKA_HOST:-kafka}
       - KAFKA_PORT=9092
       - POLICY_SERVICE_URL=${POLICY_SERVICE_URL}
       - POLICY_COMPONENT_ID=${POLICY_COMPONENT_ID}
