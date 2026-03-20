@@ -1,8 +1,11 @@
+import base64
+import gzip
 import json
 import logging
 import os
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 from utils.kmw import PyKafBridge
@@ -98,6 +101,47 @@ class KafkaSinkManager:
             success = self.clickhouse_sink.write(filtered_message)
             if not success:
                 logger.error(f"Failed to write to ClickHouse: {filtered_message}")
+        elif topic == "network.decisions":
+            try:
+                # Message format: {"compression": "gzip", "data": "base64..."}
+                compression_method = message.get("compression")
+                compressed_data = message.get("data")
+
+                if not compression_method or not compressed_data:
+                    logger.error(f"Invalid decision message format: {message.keys()}")
+                    return data
+
+                # Decompress to extract cell_id and timestamp
+                decoded = base64.b64decode(compressed_data)
+                if compression_method == "gzip":
+                    decompressed = gzip.decompress(decoded).decode("utf-8")
+                else:
+                    logger.error(f"Unsupported compression method: {compression_method}")
+                    return data
+
+                decision_data = json.loads(decompressed)
+                cell_id = decision_data.get("cell_id")
+                timestamp_str = decision_data.get("timestamp")
+
+                if not cell_id or not timestamp_str:
+                    logger.error(f"Missing cell_id or timestamp in decision: {decision_data.keys()}")
+                    return data
+
+                # Parse ISO timestamp to datetime
+                timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+
+                # Write to ClickHouse (stores compressed data)
+                from src.services.databases import ClickHouse
+                ClickHouse.get_service().write_decision(
+                    cell_id=cell_id,
+                    timestamp=timestamp,
+                    compression_method=compression_method,
+                    compressed_data=compressed_data,
+                )
+                logger.info(f"Stored decision for cell {cell_id} at {timestamp}")
+
+            except Exception as e:
+                logger.error(f"Failed to process decision message: {e}")
         else:
             logger.warning(f"Unknown topic: {topic}")
 
