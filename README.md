@@ -1,85 +1,78 @@
-# pei-nwdaf-data-storage
+# Data Storage Service
 
-> Project for PEI evaluation 25/26
+Consumes network data and decisions from Kafka and stores them in InfluxDB and ClickHouse, exposing REST APIs for querying.
 
-## Overview
+## How It Works
 
-Data storage service providing dual-database persistence layer for the NWDAF platform. Consumes processed network data from Kafka and stores it in both time-series (InfluxDB) and analytical (ClickHouse) databases, while exposing REST APIs for data retrieval.
+1. Subscribes to Kafka topics: `network.data.ingested`, `network.data.processed`, `network.decisions`
+2. Routes each message to the appropriate database:
+   - `network.data.ingested` → **InfluxDB** (raw time-series metrics)
+   - `network.data.processed` → **ClickHouse** (aggregated analytics)
+   - `network.decisions` → **ClickHouse** (compressed decision data)
+3. Exposes REST API for querying stored data
 
-## Technologies
+## Databases
 
-- **Python** 3.13
-- **FastAPI** - REST API framework
-- **InfluxDB** - Time-series database for metrics
-- **ClickHouse** - Columnar analytical database
-- **Apache Kafka** (confluent_kafka) - Message streaming consumer
-- **Docker & Docker Compose** - Containerization
-- **uvicorn** - ASGI server
-- **pytest** - Testing framework
+| Database | Port | Used For |
+|---|---|---|
+| InfluxDB | `8086` | Raw time-series metrics |
+| ClickHouse | `8123` (HTTP), `9000` (TCP) | Processed analytics + decisions |
 
-## Architecture
+## API
 
-**Dual Database Strategy**:
-- **InfluxDB**: Optimized for time-series queries, network metrics storage, fast writes
-- **ClickHouse**: Optimized for analytical queries, aggregations, OLAP workloads
+Base path: `/api/v1`
 
-## Key Features
+| Method | Endpoint | Database | Description |
+|---|---|---|---|
+| `GET` | `/cell` | InfluxDB | List all cell IDs |
+| `GET` | `/raw` | InfluxDB | Query raw ingested metrics |
+| `GET` | `/raw/fields` | InfluxDB | List available metric fields |
+| `GET` | `/processed` | ClickHouse | Query processed/aggregated data |
+| `GET` | `/processed/example` | ClickHouse | Example response schema |
+| `GET` | `/decisions` | ClickHouse | Query decision data |
 
-- **Kafka consumer**: Subscribes to `network.data.processed` topic
-- **Dual writes**: Simultaneously stores data in InfluxDB and ClickHouse
-- **REST API endpoints**: Query historical network data
-  - Cell metadata retrieval
-  - Time-range queries
-  - Latency data access
-  - Batch pagination support
-- **Data models**: Network performance metrics (RSRP, SINR, RSRQ, latency, CQI, datarate)
-- **Integration**: Provides data to ML service for training and processor for metadata
+### `/decisions` Query Parameters
 
-## Quick Start
+| Parameter | Required | Description |
+|---|---|---|
+| `start_time` | yes | Unix timestamp (seconds) |
+| `end_time` | yes | Unix timestamp (seconds) |
+| `cell_id` | no | Filter by cell (omit for all cells) |
+| `offset` | no | Pagination offset (default: 0) |
+| `limit` | no | Max records (default: 100, max: 1000) |
+
+**Response** — returns compressed decision records:
+```json
+[
+  {
+    "cell_id": 1,
+    "id": 1,
+    "timestamp": "2026-03-20T21:06:33.482000",
+    "compression_method": "gzip",
+    "compressed_data": "<base64-encoded gzip>"
+  }
+]
+```
+
+To decompress: base64-decode `compressed_data`, then gzip-decompress.
+
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `KAFKA_HOST` | `kafka` | Kafka broker hostname |
+| `KAFKA_PORT` | `9092` | Kafka broker port |
+| `INFLUX_URL` | `http://influxdb:8086` | InfluxDB URL |
+| `INFLUX_TOKEN` | — | InfluxDB auth token |
+| `INFLUX_ORG` | — | InfluxDB organization |
+| `INFLUX_BUCKET` | — | InfluxDB bucket |
+| `CLICKHOUSE_HOST` | `clickhouse` | ClickHouse hostname |
+| `CLICKHOUSE_PORT` | — | ClickHouse HTTP port |
+| `CLICKHOUSE_USER` | — | ClickHouse user |
+| `CLICKHOUSE_PASSWORD` | — | ClickHouse password |
+
+## Running
 
 ```bash
-docker-compose up -d
-```
-
-## Database Connections
-
-- **InfluxDB**: Port 8086
-- **ClickHouse**: Port 8123 (HTTP), Port 9000 (TCP)
-
-## API Endpoints (Examples)
-
-- `/cells` - List all cells
-- `/cells/{cell_id}` - Get cell metadata
-- `/latency` - Query latency data
-- `/metrics` - Retrieve network metrics
-
-## Data Flow
-
-```
-Kafka (network.data.processed) →
-Storage Service →
-├── InfluxDB (time-series metrics)
-└── ClickHouse (analytical queries)
-```
-
-## Use Cases
-
-- Historical network performance analysis
-- Training data for ML models
-- Cell metadata for processor windowing
-- Time-range queries for analytics
-- Real-time metrics dashboards
-
-## Environment Variables
-
-Configure via `.env`:
-- Database connection strings
-- Kafka broker URLs
-- Service ports
-- Retention policies
-
-## Testing
-
-```bash
-pytest tests/
+docker compose up --build
 ```
