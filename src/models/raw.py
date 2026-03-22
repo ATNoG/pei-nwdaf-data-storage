@@ -73,6 +73,8 @@ class Raw:
             if key != "timestamp" and value is not None:
                 if key in self.tags:
                     point.tag(key, str(value))
+                elif isinstance(value, (int, float, bool)):
+                    point.field(key, float(value))
                 else:
                     point.field(key, value)
 
