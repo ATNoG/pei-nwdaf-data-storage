@@ -71,33 +71,21 @@ class KafkaSinkManager:
             logger.error(f"Failed to parse message: {e}")
             return data
 
-        if self.policy_client is not None:
-            sink_id = f"{self.policy_client._async_client.component_id}"
-        else:
-            sink_id = "data-storage"
-
+        # Policy is applied upstream by Ingestion/Processor before data reaches Kafka.
+        # Data-Storage writes received data as-is to the appropriate database.
         if topic == "network.data.ingested":
-            sink_id += ":influx"
-            # Support both single records (dict) and batches (list)
+            # Raw data -> InfluxDB
             records = message if isinstance(message, list) else [message]
             for record in records:
-                filtered = self._apply_policy(record, sink_id, topic)
-                if not filtered:
-                    logger.warning(f"Message filtered by policy: sink={sink_id}")
-                else:
-                    with self._buffer_lock:
-                        self._influx_buffer.append(filtered)
+                with self._buffer_lock:
+                    self._influx_buffer.append(record)
             self._maybe_flush()
         elif topic == "network.data.processed":
-            sink_id += ":clickhouse"
+            # Processed data -> ClickHouse
             logger.info(f"Attempting to write to ClickHouse: {list(message.keys())}")
-            filtered_message = self._apply_policy(message, sink_id, topic)
-            if not filtered_message:
-                logger.warning(f"Message filtered by policy: sink={sink_id}")
-            # TODO
-            success = self.clickhouse_sink.write(filtered_message)
+            success = self.clickhouse_sink.write(message)
             if not success:
-                logger.error(f"Failed to write to ClickHouse: {filtered_message}")
+                logger.error(f"Failed to write to ClickHouse: {message}")
         else:
             logger.warning(f"Unknown topic: {topic}")
 
@@ -119,48 +107,6 @@ class KafkaSinkManager:
         # This prevents asyncio.run() from exiting and cancelling the consumer task
         if self.bridge._consumer_task:
             await self.bridge._consumer_task
-
-    # NOTE: This function could in fact not exist, but creating a separate helper function
-    # keeps things tidy and organized
-    def _apply_policy(self, data: dict, sink_id: str, topic: str) -> dict:
-        """
-        Applies policy filtering, sink_id-specific, for differentiation upon configuration
-        (This is so we don't mix raw and processed in Frontend)
-
-        The naming standard should use ":" between the concrete component and the specified sink
-        Example: sink_id = "data-storage:influx"
-        """
-        if (
-            self.policy_client is None
-            or not self.policy_client._async_client.enable_policy
-        ):
-            return data
-
-        try:
-            # Use the sync policy client to process data
-            result = self.policy_client.process_data(
-                source_id="kafka", sink_id=sink_id, data=data, action="write"
-            )
-
-            if result.allowed:
-                return result.data
-            else:
-                logger.warning(
-                    f"Policy blocked: sink={sink_id}, reason={result.reason}"
-                )
-                return {}
-
-        except Exception as e:
-            if self.policy_client._async_client.fail_open:
-                logger.warning(
-                    f"Policy failed for {sink_id}, allowing (fail_open): {e}"
-                )
-                return data
-            else:
-                logger.error(
-                    f"Policy failed for {sink_id}, blocking (fail_closed): {e}"
-                )
-                return {}
 
     async def stop(self):
         self._flush_influx()
