@@ -48,3 +48,34 @@ class QueryCH:
     SELECT DISTINCT key
     FROM analytics.metric_keys
     """
+
+    decisions = """
+    SELECT
+        cell_id,
+        id,
+        timestamp,
+        compression_method,
+        compressed_data
+    FROM analytics.decisions
+    WHERE cell_id = {cell_id:Int32}
+      AND toUnixTimestamp(timestamp) >= {start_time:Int64}
+      AND toUnixTimestamp(timestamp) <= {end_time:Int64}
+    ORDER BY timestamp DESC
+    LIMIT {limit:Int32}
+    OFFSET {offset:Int32}
+    """
+
+    decisions_all = """
+    SELECT
+        cell_id,
+        id,
+        timestamp,
+        compression_method,
+        compressed_data
+    FROM analytics.decisions
+    WHERE toUnixTimestamp(timestamp) >= {start_time:Int64}
+      AND toUnixTimestamp(timestamp) <= {end_time:Int64}
+    ORDER BY timestamp DESC
+    LIMIT {limit:Int32}
+    OFFSET {offset:Int32}
+    """

@@ -14,7 +14,7 @@ from policy_client import PolicyClient, SyncPolicyClient
 
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
 KAFKA_PORT = os.getenv("KAFKA_PORT", "9092")
-KAFKA_TOPICS = ["network.data.ingested", "network.data.processed"]
+KAFKA_TOPICS = ["network.data.ingested", "network.data.processed", "network.decisions"]
 
 POLICY_SERVICE_URL = os.getenv("POLICY_SERVICE_URL", "http://policy-service:8000")
 POLICY_COMPONENT_ID = os.getenv("POLICY_COMPONENT_ID", "data-storage")

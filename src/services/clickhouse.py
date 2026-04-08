@@ -176,3 +176,69 @@ class ClickHouseService:
             metrics = row.pop("metrics", {})
             row.update(metrics)
         return rows
+
+    def query_decisions(
+        self,
+        start_time: int,
+        end_time: int,
+        cell_id: int | None = None,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> list[dict]:
+        """
+        Query decision data from ClickHouse.
+
+        Args:
+            start_time: Filter by timestamp >= start_time (Unix timestamp)
+            end_time: Filter by timestamp <= end_time (Unix timestamp)
+            cell_id: Optional cell_id filter (None = all cells)
+            offset: Number of records to skip
+            limit: Maximum number of records to return
+
+        Returns:
+            List of dicts with decision data (compressed)
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "offset": offset,
+            "limit": limit,
+        }
+
+        if cell_id is not None:
+            query = QueryCH.decisions
+            params["cell_id"] = cell_id
+        else:
+            query = QueryCH.decisions_all
+
+        with self._get_client() as client:
+            result = client.query(query, parameters=params)
+
+        column_names = result.column_names
+        return [dict(zip(column_names, row)) for row in result.result_rows]
+
+    def write_decision(
+        self,
+        cell_id: int,
+        timestamp: datetime,
+        compression_method: str,
+        compressed_data: str,
+    ) -> None:
+        """Write a single decision record to ClickHouse"""
+        try:
+            # Auto-generate id based on existing count (simple approach)
+            # ClickHouse will handle this via rowNumberInAllBlocks() for better performance
+            with self._get_client() as client:
+                # Get next ID by counting existing rows for this cell
+                count_query = "SELECT COUNT(*) FROM analytics.decisions WHERE cell_id = {cell_id:Int32}"
+                result = client.query(count_query, parameters={"cell_id": cell_id})
+                next_id = result.result_rows[0][0] + 1
+
+                client.insert(
+                    "analytics.decisions",
+                    [[cell_id, next_id, timestamp, compression_method, compressed_data]],
+                    column_names=["cell_id", "id", "timestamp", "compression_method", "compressed_data"],
+                    settings={"async_insert": 1, "wait_for_async_insert": 0},
+                )
+        except Exception as e:
+            raise Exception(f"Failed to write decision to ClickHouse: {e}")
