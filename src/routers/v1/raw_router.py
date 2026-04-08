@@ -1,8 +1,20 @@
+"""
+Endpoints for raw data queries
+"""
+
+import logging
+import os
+
 from fastapi import APIRouter, HTTPException, Query, Header, Request
 from datetime import datetime
+
 from src.services.databases import Influx
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
 
 
 @router.get("")
@@ -20,77 +32,57 @@ def get_raw_data(
     This endpoint returns raw entries directly from the database,
     limited to a maximum of 50 per request.
 
-    Policy: If X-Component-ID header is provided, applies policy transformations
-    for the source component reading from data-storage:influx.
+    Policy: If X-Component-ID header is provided and POLICY_ENABLED=true,
+    applies policy transformations for the source component reading from
+    data-storage:influx.
     """
     try:
-        import sys
-
         query_params = {
             "start_time": start_time,
             "end_time": end_time,
             "cell_index": cell_index,
             "batch_number": batch_number,
         }
-        print(f"API called with: start={start_time}, end={end_time}, cell={cell_index}, source={x_component_id}")
-        sys.stdout.flush()
 
         results, has_next = Influx.service.query_raw_data(**query_params)
-        print(f"Router got {len(results)} results")
-        sys.stdout.flush()
 
-        with_data = [r for r in results if r.get("mean_latency")]
-        print(f"Rows with data: {len(with_data)}")
-        sys.stdout.flush()
+        if POLICY_ENABLED and x_component_id:
+            policy_client = getattr(request.app.state, 'policy_client', None) if hasattr(request, 'app') else None
+            if policy_client:
+                source_id = "data-storage:influx"
+                sink_id = x_component_id
+                filtered_results = []
 
-        # Get policy client from app state
-        policy_client = getattr(request.app.state, 'policy_client', None) if hasattr(request, 'app') else None
+                for row in results:
+                    # Convert datetime objects to strings for policy processing
+                    for k, v in row.items():
+                        if isinstance(v, datetime):
+                            row[k] = v.isoformat()
 
-        # Apply policy transformations if source component is provided
-        if x_component_id and policy_client and policy_client._async_client.enable_policy:
-            # When data-processor requests data from data-storage:
-            # - source_id is the data-processor (the one making the request)
-            # - sink_id is data-storage:influx (the resource being read from)
-            source_id = x_component_id
-            sink_id = "data-storage:influx"
-            print(f"POLICY CHECK: source_id={source_id}, sink_id={sink_id}, action=read")
-            print(f"POLICY CHECK: enable_policy={policy_client._async_client.enable_policy}, fail_open={policy_client._async_client.fail_open}")
-            sys.stdout.flush()
-            filtered_results = []
+                    try:
+                        result = policy_client.process_data(
+                            source_id=source_id,
+                            sink_id=sink_id,
+                            data=row,
+                            action="read"
+                        )
 
-            for row in results:
-                # Convert datetime objects to strings for policy processing
-                for k, v in row.items():
-                    if isinstance(v, datetime):
-                        row[k] = v.isoformat()
+                        if result.allowed:
+                            filtered_results.append(result.data)
+                    except Exception as e:
+                        if policy_client._async_client.fail_open:
+                            filtered_results.append(row)
+                            logger.warning(f"Policy failed for row, allowing (fail_open): {e}")
+                        else:
+                            logger.warning(f"Policy failed for row, blocking (fail_closed): {e}")
 
-                # Apply policy transformation with fail_open safety
-                try:
-                    result = policy_client.process_data(
-                        source_id=source_id,
-                        sink_id=sink_id,
-                        data=row,
-                        action="read"
-                    )
-
-                    print(f"POLICY RESULT: allowed={result.allowed}, reason={result.reason}")
-                    sys.stdout.flush()
-
-                    if result.allowed:
-                        filtered_results.append(result.data)
-                except Exception as e:
-                    # Policy failed - apply fail_open behavior
-                    if policy_client._async_client.fail_open:
-                        # Allow data through on policy failure
-                        filtered_results.append(row)
-                        print(f"Policy failed for row, allowing (fail_open): {e}")
-                    else:
-                        # Block data on policy failure
-                        print(f"Policy failed for row, blocking (fail_closed): {e}")
-
-            results = filtered_results
-            print(f"After policy filter: {len(results)} results")
-            sys.stdout.flush()
+                results = filtered_results
+            else:
+                # No policy client - just convert datetime objects
+                for row in results:
+                    for k, v in row.items():
+                        if isinstance(v, datetime):
+                            row[k] = v.isoformat()
         else:
             # No policy - just convert datetime objects
             for row in results:
@@ -98,13 +90,10 @@ def get_raw_data(
                     if isinstance(v, datetime):
                         row[k] = v.isoformat()
 
-        print(f"Returning {len(results)} results")
-        sys.stdout.flush()
         return {"data": results, "has_next": has_next}
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error querying raw data: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error querying raw data: {str(e)}"
         )
