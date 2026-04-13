@@ -2,11 +2,18 @@
 Endpoints for query data
 """
 
+import logging
+import os
+
 from fastapi import APIRouter, HTTPException, Query, Header, Request
 
 from src.services.databases import ClickHouse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
 
 
 @router.get("/example")
@@ -63,11 +70,11 @@ def get_processed_data(
     - Network information
     - Statistical measures for each metric
 
-    Policy: If X-Component-ID header is provided, applies policy transformations
-    for the source component reading from data-storage:clickhouse.
+    Policy: If X-Component-ID header is provided and POLICY_ENABLED=true,
+    applies policy transformations for the source component reading from
+    data-storage:clickhouse.
     """
     try:
-        # Build query parameters
         query_params = {
             "start_time": start_time,
             "end_time": end_time,
@@ -80,36 +87,32 @@ def get_processed_data(
 
         results = ClickHouse.service.query_processed(**query_params)
 
-        # Get policy client from app state
-        policy_client = getattr(request.app.state, 'policy_client', None) if hasattr(request, 'app') else None
+        if POLICY_ENABLED and x_component_id:
+            policy_client = getattr(request.app.state, 'policy_client', None) if hasattr(request, 'app') else None
+            if policy_client:
+                source_id = "data-storage:clickhouse"
+                sink_id = x_component_id
+                filtered_results = []
 
-        # Apply policy transformations if source component is provided
-        if x_component_id and policy_client and policy_client._async_client.enable_policy:
-            source_id = "data-storage:clickhouse"
-            sink_id = x_component_id
-            filtered_results = []
+                for row in results:
+                    try:
+                        result = policy_client.process_data(
+                            source_id=source_id,
+                            sink_id=sink_id,
+                            data=row,
+                            action="read"
+                        )
 
-            for row in results:
-                # Apply policy transformation with fail_open safety
-                try:
-                    result = policy_client.process_data(
-                        source_id=source_id,
-                        sink_id=sink_id,
-                        data=row,
-                        action="read"
-                    )
+                        if result.allowed:
+                            filtered_results.append(result.data)
+                    except Exception as e:
+                        if policy_client._async_client.fail_open:
+                            filtered_results.append(row)
+                            logger.warning(f"Policy failed for row, allowing (fail_open): {e}")
+                        else:
+                            logger.warning(f"Policy failed for row, blocking (fail_closed): {e}")
 
-                    if result.allowed:
-                        filtered_results.append(result.data)
-                except Exception as e:
-                    # Apply fail_open behavior
-                    if policy_client._async_client.fail_open:
-                        filtered_results.append(row)
-                        print(f"Policy failed for row, allowing (fail_open): {e}")
-                    else:
-                        print(f"Policy failed for row, blocking (fail_closed): {e}")
-
-            results = filtered_results
+                results = filtered_results
 
         return results
 
