@@ -66,6 +66,7 @@ services:
       - POLICY_ENABLED=${POLICY_ENABLED}
       - POLICY_FAILOPEN=${POLICY_FAILOPEN}
       - POLICY_ROLENAME=storage
+      - ENCRYPTION_ENABLED=${ENCRYPTION_ENABLED:-false}
     depends_on:
       clickhouse:
         condition: service_started
