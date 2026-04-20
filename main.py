@@ -21,6 +21,8 @@ POLICY_COMPONENT_ID = os.getenv("POLICY_COMPONENT_ID", "data-storage")
 POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
 POLICY_FAILOPEN = os.getenv("POLICY_FAILOPEN", "true").lower() == "true"
 
+ENCRYPTION_ENABLED = os.getenv("ENCRYPTION_ENABLED", "false").lower() == "true"
+
 # Runtime field discovery - updated when data flows through
 _discovered_fields: set[str] = set()
 
@@ -68,21 +70,19 @@ async def lifespan(app: FastAPI):
     app.state.policy_client = policy_client
 
     # Initialize database connections (singleton, handles connection internally)
-    Influx.service  # Access triggers lazy initialization
-    ClickHouse.service  # Access triggers lazy initialization
-    load_all()
+    try:
+        Influx.service  # Access triggers lazy initialization + connect
+        ClickHouse.service  # Access triggers lazy initialization + connect
+        load_all()
+        print("Database services initialized")
+    except Exception as e:
+        import traceback
+        print(f"Warning: Failed to initialize database services: {e}")
+        traceback.print_exc()
 
-    # We may not want policy enabled, so we encase it in an if
+    # Register with Policy Service (only when enabled)
     if POLICY_ENABLED:
         try:
-            print("Connecting to InfluxDB...")
-            Influx.service.connect()
-            print("InfluxDB connected")
-
-            print("Connecting to ClickHouse...")
-            ClickHouse.service.connect()
-            print("ClickHouse connected")
-
             # Get fields after services are connected
             print("Getting fields from services...")
             influx_fields = Influx.service.get_fields()
@@ -135,7 +135,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await _async_client.stop_heartbeat()
+    if POLICY_ENABLED:
+        await _async_client.stop_heartbeat()
 
     try:
         await sink_manager.stop()
@@ -148,3 +149,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
+
+if ENCRYPTION_ENABLED:
+    from encryptor.server.integration import integrate_encryptor
+    integrate_encryptor(app)
