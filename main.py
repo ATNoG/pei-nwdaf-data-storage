@@ -21,6 +21,8 @@ POLICY_COMPONENT_ID = os.getenv("POLICY_COMPONENT_ID", "data-storage")
 POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
 POLICY_FAILOPEN = os.getenv("POLICY_FAILOPEN", "true").lower() == "true"
 
+ENCRYPTION_ENABLED = os.getenv("ENCRYPTION_ENABLED", "false").lower() == "true"
+
 # Runtime field discovery - updated when data flows through
 _discovered_fields: set[str] = set()
 
@@ -147,3 +149,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
+
+if ENCRYPTION_ENABLED:
+    from encryptor.server.integration import integrate_encryptor
+    integrate_encryptor(app)

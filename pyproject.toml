@@ -15,6 +15,7 @@ dependencies = [
     "cryptography>=42.0.5",
     "pyyaml>=6.0.0",
     "policy-client-sdk @ git+https://github.com/ATNoG/pei-nwdaf-policy.git#subdirectory=client_sdk",
+    "pei-nwdaf-encryptor @ git+https://github.com/ATNoG/pei-nwdaf-encryptor.git",
 ]
 
 [project.optional-dependencies]
