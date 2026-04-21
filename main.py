@@ -5,7 +5,6 @@ from threading import Thread
 
 from fastapi import FastAPI
 
-from src.configs import load_all
 from src.routers.v1 import v1_router
 from src.services.databases import ClickHouse, Influx
 from src.sink import KafkaSinkManager
@@ -73,7 +72,6 @@ async def lifespan(app: FastAPI):
     try:
         Influx.service  # Access triggers lazy initialization + connect
         ClickHouse.service  # Access triggers lazy initialization + connect
-        load_all()
         print("Database services initialized")
     except Exception as e:
         import traceback
