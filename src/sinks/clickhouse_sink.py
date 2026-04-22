@@ -25,7 +25,10 @@ class ClickHouseSink(Sink):
 
     def write_batch(self, data_list: list[dict]) -> bool:
         try:
-            self.service.write_batch(data_list)
+            filtered = [d for d in data_list if d.get("sample_count", 1) != 0]
+            if not filtered:
+                return True
+            self.service.write_batch(filtered)
             return True
         except Exception as e:
             self.logger.error(f"Failed to batch write to ClickHouse: {e}")

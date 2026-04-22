@@ -84,11 +84,12 @@ class KafkaSinkManager:
                     self._influx_buffer.append(record)
             self._maybe_flush()
         elif topic == "network.data.processed":
-            # Processed data -> ClickHouse
-            logger.info(f"Attempting to write to ClickHouse: {list(message.keys())}")
+            tags = message.get("tags", {})
+            logger.info(f"Writing to ClickHouse: event={tags.get('event')} "
+                        f"sst={tags.get('snssai_sst')} dnn={tags.get('dnn')}")
             success = self.clickhouse_sink.write(message)
             if not success:
-                logger.error(f"Failed to write to ClickHouse: {message}")
+                logger.error(f"Failed to write to ClickHouse")
         elif topic == "network.decisions":
             try:
                 # Message format: {"compression": "gzip", "data": "base64..."}

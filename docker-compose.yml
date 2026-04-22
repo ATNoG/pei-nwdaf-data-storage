@@ -69,7 +69,7 @@ services:
       - ENCRYPTION_ENABLED=${ENCRYPTION_ENABLED:-false}
     depends_on:
       clickhouse:
-        condition: service_started
+        condition: service_healthy
       influxdb:
         condition: service_started
     networks:

@@ -1,7 +1,3 @@
-"""
-Endpoints for query data
-"""
-
 import logging
 import os
 
@@ -16,107 +12,77 @@ router = APIRouter()
 POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
 
 
-@router.get("/example")
-def get_latency_example():
+@router.get("/fields")
+def get_processed_fields():
     """
-    Returns example response data for the processed endpoint.
+    Returns all known metric keys grouped by the event type that produces them.
 
-    This endpoint provides a sample of what the actual data format looks like,
-    useful for API documentation and client development.
-
-    The example dynamically includes all known metric keys from ClickHouse.
+    Example: {"thrputUl_mbps_mean": ["PERF_DATA"], "speed_mean": ["UE_MOBILITY"]}
     """
-    example = {
-        "cell_index": 0,
-        "ip_src": None,
-        "sample_count": 0,
-        "window_start_time": 1733828400,
-        "window_end_time": 1733828410,
-        "window_duration_seconds": 0.0,
-        "network": "",
-    }
-    for key in ClickHouse.service.get_metric_keys():
-        example[key] = 0.0
-
-    return [example]
+    try:
+        return ClickHouse.service.get_metric_event_map()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching metric fields: {str(e)}")
 
 
 @router.get("")
 def get_processed_data(
     request: Request,
-    start_time: int = Query(
-        ..., description="Window start time (Unix timestamp in seconds)"
-    ),
-    end_time: int = Query(
-        ..., description="Window end time (Unix timestamp in seconds)"
-    ),
-    cell_index: int = Query(..., description="Cell index (required)"),
-    window_duration_seconds: int = Query(
-        ..., description="Duration of the target windows"
-    ),
-    ip_src: str | None = Query(None, description="Source IP filter: omit for cell-level only, '*' for all per-IP rows, or a specific IP"),
-    offset: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(
-        100, ge=1, le=1000, description="Maximum number of records to return"
-    ),
+    start_time: int = Query(..., description="Window start (Unix timestamp, seconds)"),
+    end_time: int = Query(..., description="Window end (Unix timestamp, seconds)"),
+    snssai_sst: str = Query(..., description="S-NSSAI SST (slice type)"),
+    snssai_sd: str | None = Query(None, description="S-NSSAI SD (slice differentiator, 6 hex digits)"),
+    dnn: str = Query(..., description="Data Network Name"),
+    event: str | None = Query(None, description="Event type filter (e.g. PERF_DATA, UE_MOBILITY)"),
+    window_duration_seconds: int | None = Query(None, description="Window duration filter (seconds)"),
+    offset: int = Query(0, ge=0, description="Records to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Max records to return"),
     x_component_id: str = Header(None, alias="X-Component-ID"),
 ):
     """
-    Query processed data with various filters.
+    Query processed analytics windows from ClickHouse.
 
-    Returns aggregated statistics over time windows including:
-    - Signal quality metrics
-    - Performance metrics
-    - Network information
-    - Statistical measures for each metric
-
-    Policy: If X-Component-ID header is provided and POLICY_ENABLED=true,
-    applies policy transformations for the source component reading from
-    data-storage:clickhouse.
+    Groups are identified by snssai_sst + dnn + event. Additional UE-level tags
+    (ueIpv4Addr, supi, etc.) are returned in the ue_tags field of each row.
+    Metric stats are flattened: thrputUl_mbps_mean, thrputUl_mbps_min, etc.
     """
     try:
-        query_params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "cell_index": cell_index,
-            "offset": offset,
-            "limit": limit,
-            "window_duration_seconds": window_duration_seconds,
-            "ip_src": ip_src,
-        }
-
-        results = ClickHouse.service.query_processed(**query_params)
+        results = ClickHouse.service.query_processed(
+            start_time=start_time,
+            end_time=end_time,
+            snssai_sst=snssai_sst,
+            snssai_sd=snssai_sd,
+            dnn=dnn,
+            event=event,
+            window_duration_seconds=window_duration_seconds,
+            offset=offset,
+            limit=limit,
+        )
 
         if POLICY_ENABLED and x_component_id:
-            policy_client = getattr(request.app.state, 'policy_client', None) if hasattr(request, 'app') else None
+            policy_client = getattr(request.app.state, "policy_client", None) if hasattr(request, "app") else None
             if policy_client:
                 source_id = "data-storage:clickhouse"
-                sink_id = x_component_id
-                filtered_results = []
-
+                filtered = []
                 for row in results:
                     try:
                         result = policy_client.process_data(
                             source_id=source_id,
-                            sink_id=sink_id,
+                            sink_id=x_component_id,
                             data=row,
-                            action="read"
+                            action="read",
                         )
-
                         if result.allowed:
-                            filtered_results.append(result.data)
+                            filtered.append(result.data)
                     except Exception as e:
                         if policy_client._async_client.fail_open:
-                            filtered_results.append(row)
+                            filtered.append(row)
                             logger.warning(f"Policy failed for row, allowing (fail_open): {e}")
                         else:
                             logger.warning(f"Policy failed for row, blocking (fail_closed): {e}")
-
-                results = filtered_results
+                results = filtered
 
         return results
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error querying processed latency: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error querying processed data: {str(e)}")
