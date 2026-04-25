@@ -148,8 +148,8 @@ class ClickHouseService:
         self,
         start_time: int,
         end_time: int,
-        snssai_sst: str,
-        dnn: str,
+        snssai_sst: str | None = None,
+        dnn: str | None = None,
         snssai_sd: str | None = None,
         event: str | None = None,
         window_duration_seconds: int | None = None,
@@ -159,19 +159,23 @@ class ClickHouseService:
         params: dict = {
             "start_time": start_time,
             "end_time": end_time,
-            "snssai_sst": snssai_sst,
-            "dnn": dnn,
             "offset": offset,
             "limit": limit,
         }
 
         query = (
             "SELECT * FROM analytics.processed"
-            " WHERE snssai_sst = {snssai_sst:String}"
-            " AND dnn = {dnn:String}"
-            " AND toUnixTimestamp(window_start) >= {start_time:Int64}"
+            " WHERE toUnixTimestamp(window_start) >= {start_time:Int64}"
             " AND toUnixTimestamp(window_end) <= {end_time:Int64}"
         )
+
+        if snssai_sst is not None:
+            query += " AND snssai_sst = {snssai_sst:String}"
+            params["snssai_sst"] = snssai_sst
+
+        if dnn is not None:
+            query += " AND dnn = {dnn:String}"
+            params["dnn"] = dnn
 
         if snssai_sd is not None:
             query += " AND snssai_sd = {snssai_sd:String}"
