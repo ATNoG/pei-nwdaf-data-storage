@@ -14,4 +14,5 @@ CREATE TABLE IF NOT EXISTS analytics.processed
 )
 ENGINE = MergeTree
 ORDER BY (snssai_sst, snssai_sd, dnn, event, window_start)
+TTL toDateTime(window_start) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
