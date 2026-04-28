@@ -8,4 +8,5 @@ CREATE TABLE IF NOT EXISTS analytics.decisions (
     compressed_data String
 ) ENGINE = ReplacingMergeTree()
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (cell_id, timestamp);
+ORDER BY (cell_id, timestamp)
+TTL toDateTime(timestamp) + INTERVAL 1 YEAR;
