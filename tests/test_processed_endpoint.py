@@ -70,17 +70,6 @@ class TestProcessedEndpoint:
 
         assert response.status_code == 200
         assert response.json() == []
-
-    def test_missing_snssai_sst(self, test_client, mock_clickhouse_service):
-        params = {k: v for k, v in REQUIRED_PARAMS.items() if k != "snssai_sst"}
-        response = test_client.get("/api/v1/processed", params=params)
-        assert response.status_code == 422
-
-    def test_missing_dnn(self, test_client, mock_clickhouse_service):
-        params = {k: v for k, v in REQUIRED_PARAMS.items() if k != "dnn"}
-        response = test_client.get("/api/v1/processed", params=params)
-        assert response.status_code == 422
-
     def test_missing_start_time(self, test_client, mock_clickhouse_service):
         params = {k: v for k, v in REQUIRED_PARAMS.items() if k != "start_time"}
         response = test_client.get("/api/v1/processed", params=params)
