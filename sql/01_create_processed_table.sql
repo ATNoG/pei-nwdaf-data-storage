@@ -1,15 +1,18 @@
 CREATE DATABASE IF NOT EXISTS analytics;
 CREATE TABLE IF NOT EXISTS analytics.processed
 (
-    cell_index              Int32,
-    ip_src                  Nullable(String),
-    sample_count            Int32,
-    window_start_time       DateTime64(3),
-    window_end_time         DateTime64(3),
-    window_duration_seconds Float64,
-    network                 Nullable(String),
+    window_start            DateTime64(3),
+    window_end              DateTime64(3),
+    window_duration_seconds UInt32,
+    sample_count            UInt32,
+    snssai_sst              String,
+    snssai_sd               String,
+    dnn                     String,
+    event                   String,
+    ue_tags                 Map(String, String),
     metrics                 Map(String, Float64)
 )
 ENGINE = MergeTree
-ORDER BY (cell_index, window_start_time)
+ORDER BY (snssai_sst, snssai_sd, dnn, event, window_start)
+TTL toDateTime(window_start) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
