@@ -4,316 +4,222 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-# Sample Unix timestamps for testing
 SAMPLE_START_TIME = int(datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp())
 SAMPLE_END_TIME = int(datetime(2024, 1, 1, 13, 0, 0, tzinfo=timezone.utc).timestamp())
 
 
 @pytest.fixture
 def mock_clickhouse_service():
-    """
-    Mock ClickHouse singleton service for testing.
-
-    This patches the _ServiceProperty descriptor to return a mock service.
-    """
     service_mock = MagicMock()
-
-    # Patch the descriptor's get_service_func to return our mock
-    with patch(
-        "src.services.databases.ClickHouse.get_service", return_value=service_mock
-    ):
+    with patch("src.services.databases.ClickHouse.get_service", return_value=service_mock):
         yield service_mock
 
 
 @pytest.fixture
 def test_client(mock_clickhouse_service):
-    """Create a test client for the FastAPI app."""
     from fastapi import FastAPI
-
     from src.routers.v1 import v1_router
 
     app = FastAPI()
     app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
-
     return TestClient(app)
 
 
 @pytest.fixture
-def sample_processed_latency_dict():
-    """Create a sample processed latency dict for testing."""
+def sample_row():
     return {
-        "window_start_time": datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-        "window_end_time": datetime(2024, 1, 1, 12, 5, 0, tzinfo=timezone.utc),
-        "window_duration_seconds": 300.0,
-        "cell_index": 1,
-        "network": "5G",
-        "rsrp_mean": -80.0,
-        "rsrp_max": -70.0,
-        "rsrp_min": -90.0,
-        "rsrp_std": 5.0,
-        "sinr_mean": 15.0,
-        "sinr_max": 20.0,
-        "sinr_min": 10.0,
-        "sinr_std": 3.0,
-        "rsrq_mean": -10.0,
-        "rsrq_max": -8.0,
-        "rsrq_min": -12.0,
-        "rsrq_std": 1.5,
-        "latency_mean": 20.0,
-        "latency_max": 30.0,
-        "latency_min": 10.0,
-        "latency_std": 5.0,
-        "cqi_mean": 12.0,
-        "cqi_max": 15.0,
-        "cqi_min": 10.0,
-        "cqi_std": 2.0,
-        "primary_bandwidth": 100.0,
-        "ul_bandwidth": 50.0,
-        "sample_count": 100,
+        "window_start": datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        "window_end": datetime(2024, 1, 1, 12, 1, 0, tzinfo=timezone.utc),
+        "window_duration_seconds": 60,
+        "sample_count": 10,
+        "snssai_sst": "1",
+        "snssai_sd": "000001",
+        "dnn": "internet",
+        "event": "PERF_DATA",
+        "ue_tags": {},
+        "thrputUl_mbps_mean": 11.5,
+        "pdb_ms_mean": 25.0,
     }
 
 
-class TestLatencyEndpoint:
-    """Tests for the processed latency endpoint."""
+REQUIRED_PARAMS = {
+    "start_time": SAMPLE_START_TIME,
+    "end_time": SAMPLE_END_TIME,
+    "snssai_sst": "1",
+    "dnn": "internet",
+}
 
-    def test_get_processed_data_success(
-        self, test_client, mock_clickhouse_service, sample_processed_latency_dict
-    ):
-        """Test successful retrieval of processed latency data."""
-        # Mock service response
-        mock_clickhouse_service.query_processed.return_value = [
-            sample_processed_latency_dict
-        ]
 
-        # Make request
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "window_duration_seconds": 300,
-            },
-        )
+class TestProcessedEndpoint:
+    def test_success(self, test_client, mock_clickhouse_service, sample_row):
+        mock_clickhouse_service.query_processed.return_value = [sample_row]
 
-        # Verify response
+        response = test_client.get("/api/v1/processed", params=REQUIRED_PARAMS)
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["cell_index"] == 1
-        assert data[0]["network"] == "5G"
-        assert data[0]["rsrp_mean"] == -80.0
-        assert data[0]["sample_count"] == 100
+        assert data[0]["snssai_sst"] == "1"
+        assert data[0]["dnn"] == "internet"
+        assert data[0]["thrputUl_mbps_mean"] == 11.5
 
-        # Verify service was called correctly
-        mock_clickhouse_service.query_processed.assert_called_once()
-
-    def test_get_processed_data_empty_result(
-        self, test_client, mock_clickhouse_service
-    ):
-        """Test endpoint with no matching data."""
+    def test_empty_result(self, test_client, mock_clickhouse_service):
         mock_clickhouse_service.query_processed.return_value = []
 
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "window_duration_seconds": 300,
-            },
-        )
+        response = test_client.get("/api/v1/processed", params=REQUIRED_PARAMS)
 
         assert response.status_code == 200
         assert response.json() == []
+    def test_missing_start_time(self, test_client, mock_clickhouse_service):
+        params = {k: v for k, v in REQUIRED_PARAMS.items() if k != "start_time"}
+        response = test_client.get("/api/v1/processed", params=params)
+        assert response.status_code == 422
 
-    def test_get_processed_data_missing_required_params(
-        self, test_client, mock_clickhouse_service
-    ):
-        """Test endpoint with missing required parameters."""
-        # Missing cell_index
-        response = test_client.get(
-            "/api/v1/processed",
-            params={"start_time": SAMPLE_START_TIME, "end_time": SAMPLE_END_TIME},
-        )
+    def test_missing_end_time(self, test_client, mock_clickhouse_service):
+        params = {k: v for k, v in REQUIRED_PARAMS.items() if k != "end_time"}
+        response = test_client.get("/api/v1/processed", params=params)
+        assert response.status_code == 422
 
-        assert response.status_code == 422  # Validation error
-
-    def test_get_processed_data_with_pagination(
-        self, test_client, mock_clickhouse_service, sample_processed_latency_dict
-    ):
-        """Test endpoint with pagination parameters."""
-        mock_clickhouse_service.query_processed.return_value = [
-            sample_processed_latency_dict
-        ]
+    def test_optional_snssai_sd(self, test_client, mock_clickhouse_service, sample_row):
+        mock_clickhouse_service.query_processed.return_value = [sample_row]
 
         response = test_client.get(
             "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "offset": 50,
-                "limit": 25,
-                "window_duration_seconds": 300,
-            },
+            params={**REQUIRED_PARAMS, "snssai_sd": "000001"},
         )
 
         assert response.status_code == 200
+        call_kwargs = mock_clickhouse_service.query_processed.call_args[1]
+        assert call_kwargs["snssai_sd"] == "000001"
 
-        # Verify pagination was passed to service
+    def test_optional_event_filter(self, test_client, mock_clickhouse_service, sample_row):
+        mock_clickhouse_service.query_processed.return_value = [sample_row]
+
+        response = test_client.get(
+            "/api/v1/processed",
+            params={**REQUIRED_PARAMS, "event": "PERF_DATA"},
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_clickhouse_service.query_processed.call_args[1]
+        assert call_kwargs["event"] == "PERF_DATA"
+
+    def test_optional_window_duration(self, test_client, mock_clickhouse_service, sample_row):
+        mock_clickhouse_service.query_processed.return_value = [sample_row]
+
+        response = test_client.get(
+            "/api/v1/processed",
+            params={**REQUIRED_PARAMS, "window_duration_seconds": 60},
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_clickhouse_service.query_processed.call_args[1]
+        assert call_kwargs["window_duration_seconds"] == 60
+
+    def test_pagination_passed_to_service(self, test_client, mock_clickhouse_service, sample_row):
+        mock_clickhouse_service.query_processed.return_value = [sample_row]
+
+        response = test_client.get(
+            "/api/v1/processed",
+            params={**REQUIRED_PARAMS, "offset": 50, "limit": 25},
+        )
+
+        assert response.status_code == 200
         call_kwargs = mock_clickhouse_service.query_processed.call_args[1]
         assert call_kwargs["offset"] == 50
         assert call_kwargs["limit"] == 25
 
-    def test_get_processed_data_invalid_limit(
-        self, test_client, mock_clickhouse_service
-    ):
-        """Test endpoint with invalid limit value."""
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "limit": 5000,  # Exceeds max of 1000
-                "window_duration_seconds": 300,
-            },
-        )
+    def test_default_pagination(self, test_client, mock_clickhouse_service, sample_row):
+        mock_clickhouse_service.query_processed.return_value = [sample_row]
 
-        assert response.status_code == 422  # Validation error
+        test_client.get("/api/v1/processed", params=REQUIRED_PARAMS)
 
-    def test_get_processed_data_invalid_offset(
-        self, test_client, mock_clickhouse_service
-    ):
-        """Test endpoint with negative offset."""
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "offset": -10,
-                "window_duration_seconds": 300,
-            },
-        )
-
-        assert response.status_code == 422  # Validation error
-
-    def test_get_processed_data_service_error(
-        self, test_client, mock_clickhouse_service
-    ):
-        """Test endpoint when service raises an exception."""
-        mock_clickhouse_service.query_processed.side_effect = Exception(
-            "Database error"
-        )
-
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "window_duration_seconds": 300,
-            },
-        )
-
-        assert response.status_code == 500
-        assert "Database error" in response.json()["detail"]
-
-    def test_get_processed_data_multiple_results(
-        self, test_client, mock_clickhouse_service, sample_processed_latency_dict
-    ):
-        """Test endpoint returning multiple results."""
-        # Create multiple samples
-        samples = [sample_processed_latency_dict for _ in range(5)]
-        mock_clickhouse_service.query_processed.return_value = samples
-
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "window_duration_seconds": 300,
-            },
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 5
-
-    def test_get_processed_data_default_pagination(
-        self, test_client, mock_clickhouse_service, sample_processed_latency_dict
-    ):
-        """Test endpoint uses default pagination values."""
-        mock_clickhouse_service.query_processed.return_value = [
-            sample_processed_latency_dict
-        ]
-
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "window_duration_seconds": 300,
-            },
-        )
-
-        assert response.status_code == 200
-
-        # Verify default pagination values
         call_kwargs = mock_clickhouse_service.query_processed.call_args[1]
         assert call_kwargs["offset"] == 0
         assert call_kwargs["limit"] == 100
 
-    def test_get_processed_data_with_null_fields(
-        self, test_client, mock_clickhouse_service
-    ):
-        """Test endpoint with data containing null/optional fields."""
-        partial_data = {
-            "window_start_time": datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-            "window_end_time": datetime(2024, 1, 1, 12, 5, 0, tzinfo=timezone.utc),
-            "window_duration_seconds": 300.0,
-            "cell_index": 1,
-            "network": "5G",
-            "rsrp_mean": None,  # Null field
-            "rsrp_max": None,
-            "rsrp_min": None,
-            "rsrp_std": None,
-            "sample_count": 50,
-        }
-
-        mock_clickhouse_service.query_processed.return_value = [partial_data]
-
+    def test_invalid_limit_too_large(self, test_client, mock_clickhouse_service):
         response = test_client.get(
             "/api/v1/processed",
-            params={
-                "start_time": SAMPLE_START_TIME,
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "window_duration_seconds": 300,
-            },
+            params={**REQUIRED_PARAMS, "limit": 5000},
         )
+        assert response.status_code == 422
+
+    def test_invalid_negative_offset(self, test_client, mock_clickhouse_service):
+        response = test_client.get(
+            "/api/v1/processed",
+            params={**REQUIRED_PARAMS, "offset": -10},
+        )
+        assert response.status_code == 422
+
+    def test_invalid_start_time_format(self, test_client, mock_clickhouse_service):
+        params = {**REQUIRED_PARAMS, "start_time": "not-a-timestamp"}
+        response = test_client.get("/api/v1/processed", params=params)
+        assert response.status_code == 422
+
+    def test_service_error_returns_500(self, test_client, mock_clickhouse_service):
+        mock_clickhouse_service.query_processed.side_effect = Exception("DB error")
+
+        response = test_client.get("/api/v1/processed", params=REQUIRED_PARAMS)
+
+        assert response.status_code == 500
+        assert "DB error" in response.json()["detail"]
+
+    def test_multiple_results(self, test_client, mock_clickhouse_service, sample_row):
+        mock_clickhouse_service.query_processed.return_value = [sample_row] * 5
+
+        response = test_client.get("/api/v1/processed", params=REQUIRED_PARAMS)
+
+        assert response.status_code == 200
+        assert len(response.json()) == 5
+
+    def test_ue_tags_in_response(self, test_client, mock_clickhouse_service):
+        row = {
+            "window_start": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+            "window_end": datetime(2024, 1, 1, 12, 1, tzinfo=timezone.utc),
+            "window_duration_seconds": 60,
+            "sample_count": 5,
+            "snssai_sst": "1",
+            "snssai_sd": "000001",
+            "dnn": "internet",
+            "event": "PERF_DATA",
+            "ue_tags": {"ueIpv4Addr": "10.0.0.1"},
+        }
+        mock_clickhouse_service.query_processed.return_value = [row]
+
+        response = test_client.get("/api/v1/processed", params=REQUIRED_PARAMS)
+
+        assert response.status_code == 200
+        assert response.json()[0]["ue_tags"] == {"ueIpv4Addr": "10.0.0.1"}
+
+
+class TestFieldsEndpoint:
+    def test_fields_success(self, test_client, mock_clickhouse_service):
+        mock_clickhouse_service.get_metric_event_map.return_value = {
+            "thrputUl_mbps_mean": ["PERF_DATA"],
+            "pdb_ms_mean": ["PERF_DATA"],
+            "speed_mean": ["UE_MOBILITY"],
+        }
+
+        response = test_client.get("/api/v1/processed/fields")
 
         assert response.status_code == 200
         data = response.json()
-        assert data[0]["rsrp_mean"] is None
-        assert data[0]["sample_count"] == 50
+        assert data["thrputUl_mbps_mean"] == ["PERF_DATA"]
+        assert data["speed_mean"] == ["UE_MOBILITY"]
 
-    def test_get_processed_data_invalid_datetime_format(
-        self, test_client, mock_clickhouse_service
-    ):
-        """Test endpoint with invalid timestamp format."""
-        response = test_client.get(
-            "/api/v1/processed",
-            params={
-                "start_time": "invalid-timestamp",
-                "end_time": SAMPLE_END_TIME,
-                "cell_index": 1,
-                "window_duration_seconds": 300,
-            },
-        )
+    def test_fields_empty(self, test_client, mock_clickhouse_service):
+        mock_clickhouse_service.get_metric_event_map.return_value = {}
 
-        assert response.status_code == 422  # Validation error
+        response = test_client.get("/api/v1/processed/fields")
+
+        assert response.status_code == 200
+        assert response.json() == {}
+
+    def test_fields_service_error(self, test_client, mock_clickhouse_service):
+        mock_clickhouse_service.get_metric_event_map.side_effect = Exception("view missing")
+
+        response = test_client.get("/api/v1/processed/fields")
+
+        assert response.status_code == 500
+        assert "view missing" in response.json()["detail"]

@@ -305,14 +305,11 @@ class TestClickHouseSinkEmptyWindowFiltering:
     ):
         """Test that valid windows are written normally."""
         valid_data = {
-            "cell_index": 123,
+            "tags": {"snssai_sst": "1", "snssai_sd": "000001", "dnn": "internet", "event": "PERF_DATA"},
             "window_start": 1733684400,
             "window_end": 1733684460,
             "sample_count": 100,
-            "network": "5G",
-            "primary_bandwidth": 100.0,
-            "ul_bandwidth": 50.0,
-            "rsrp": {"mean": -80.0, "max": -70.0, "min": -90.0, "std": 5.0},
+            "metrics": {"thrputUl_mbps": {"mean": 11.5, "min": 5.0, "max": 20.0, "std": 3.2, "count": 10}},
         }
 
         result = clickhouse_sink.write(valid_data)

@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from queue import Queue
+from queue import Empty, Queue
 
 import clickhouse_connect
 from clickhouse_connect.driver.client import Client
@@ -8,53 +8,60 @@ from clickhouse_connect.driver.client import Client
 from src.configs.clickhouse_conf import ClickhouseConf
 from src.services.clickhouse_query import QueryCH
 
-_FIELD_MAPPING = {"mean_latency": "latency"}
-
-_SKIP_KEYS = {"window_start", "window_end", "cell_index", "ip_src", "sample_count", "network"}
-
-
-def apply_field_mapping(field: str) -> str:
-    return _FIELD_MAPPING.get(field, field)
+_KNOWN_TAGS = {"snssai_sst", "snssai_sd", "dnn", "event"}
+_REQUIRED_TAGS = {"snssai_sst", "dnn", "event"}
 
 
 def transform_processor_output(data: dict) -> dict:
     """
-    Transform processor's nested output format to flat storage format.
+    Transform Data-Processor window output to ClickHouse storage format.
+
+    Input: {tags: {snssai_sst, snssai_sd, dnn, event, ...ue_tags},
+            window_start, window_end, sample_count,
+            metrics: {name: {mean, min, max, std, count}}}
+
+    Metrics are flattened: thrputUl_mbps -> thrputUl_mbps_mean, thrputUl_mbps_min, ...
+    None stat values (zero-fill windows) are omitted from the map.
     """
-    required = ["window_start", "window_end", "cell_index", "sample_count"]
-    for field in required:
+    for field in ("window_start", "window_end", "sample_count", "tags"):
         if field not in data:
-            raise ValueError(f"Missing required fields: {field}")
+            raise ValueError(f"Missing required field: {field}")
+
+    if data["window_end"] < data["window_start"]:
+        raise ValueError("window_end must be >= window_start")
+
+    tags = data["tags"]
+    for tag in _REQUIRED_TAGS:
+        if not tags.get(tag):
+            raise ValueError(f"Missing required tag: {tag}")
+
+    ue_tags = {k: str(v) for k, v in tags.items() if k not in _KNOWN_TAGS}
 
     metrics: dict[str, float] = {}
-
-    for key, value in data.items():
-        if key in _SKIP_KEYS:
-            continue
-        if isinstance(value, dict):
-            base_name = apply_field_mapping(key)
-            for sub_key, sub_value in value.items():
-                if not isinstance(sub_value, dict):
+    for metric_name, stats in data.get("metrics", {}).items():
+        if isinstance(stats, dict):
+            for stat_name, stat_value in stats.items():
+                if stat_value is not None:
                     try:
-                        metrics[f"{base_name}_{sub_key}"] = float(sub_value)
+                        metrics[f"{metric_name}_{stat_name}"] = float(stat_value)
                     except (TypeError, ValueError):
-                        pass  # skip non-numeric sub-fields
+                        pass
         else:
             try:
-                metrics[key] = float(value)
+                metrics[metric_name] = float(stats)
             except (TypeError, ValueError):
-                pass  # skip non-numeric flat fields (e.g. "type": "latency")
+                pass
 
     return {
-        "cell_index": data["cell_index"],
-        "ip_src": data.get("ip_src"),
-        "sample_count": data["sample_count"],
-        "window_start_time": datetime.fromtimestamp(
-            data["window_start"], tz=timezone.utc
-        ),
-        "window_end_time": datetime.fromtimestamp(data["window_end"], tz=timezone.utc),
-        "window_duration_seconds": float(data["window_end"] - data["window_start"]),
-        "network": data.get("network"),
+        "window_start": datetime.fromtimestamp(data["window_start"], tz=timezone.utc),
+        "window_end": datetime.fromtimestamp(data["window_end"], tz=timezone.utc),
+        "window_duration_seconds": int(data["window_end"] - data["window_start"]),
+        "sample_count": int(data["sample_count"]),
+        "snssai_sst": tags["snssai_sst"],
+        "snssai_sd": tags.get("snssai_sd", ""),
+        "dnn": tags["dnn"],
+        "event": tags["event"],
+        "ue_tags": ue_tags,
         "metrics": metrics,
     }
 
@@ -66,7 +73,6 @@ class ClickHouseService:
         self._pool_size = pool_size
 
     def connect(self):
-        """Create the connection pool."""
         for _ in range(self._pool_size):
             self._pool.put(self._create_client())
 
@@ -80,8 +86,16 @@ class ClickHouseService:
 
     @contextmanager
     def _get_client(self):
-        """Borrow a client from the pool, return it when done."""
-        client = self._pool.get()
+        """Borrow a client from the pool; create a one-off if pool is empty (startup race)."""
+        try:
+            client = self._pool.get(timeout=5)
+        except Empty:
+            # Pool empty — create a single fresh client without touching the pool.
+            # Concurrent threads that also hit Empty each get their own one-off client;
+            # the pool naturally refills as normal borrowers return their clients.
+            client = self._create_client()
+            yield client
+            return
         try:
             yield client
         finally:
@@ -92,8 +106,13 @@ class ClickHouseService:
             result = client.query(QueryCH.metric_keys)
             return [row[0] for row in result.result_rows]
 
+    def get_metric_event_map(self) -> dict[str, list[str]]:
+        """Return {metric_key: [event, ...]} from the materialized view."""
+        with self._get_client() as client:
+            result = client.query(QueryCH.metric_event_map)
+            return {row[0]: list(row[1]) for row in result.result_rows}
+
     def write_data(self, data: dict) -> None:
-        """Write a single processed record to ClickHouse"""
         try:
             transformed = transform_processor_output(data)
             column_names = list(transformed.keys())
@@ -109,7 +128,6 @@ class ClickHouseService:
             raise Exception(f"Failed to write to ClickHouse: {e}")
 
     def write_batch(self, data_list: list[dict]) -> None:
-        """Write multiple processed records to ClickHouse"""
         try:
             transformed_list = [transform_processor_output(d) for d in data_list]
             if not transformed_list:
@@ -130,48 +148,62 @@ class ClickHouseService:
         self,
         start_time: int,
         end_time: int,
-        cell_index: int,
-        window_duration_seconds: int,
-        offset: int,
-        limit: int,
-        ip_src: str | None = None,
+        snssai_sst: str | None = None,
+        dnn: str | None = None,
+        snssai_sd: str | None = None,
+        event: str | None = None,
+        window_duration_seconds: int | None = None,
+        offset: int = 0,
+        limit: int = 100,
     ) -> list[dict]:
-        """
-        Query processed latency data from ClickHouse.
-
-        Args:
-            start_time: Filter by window_start_time >= start_time (Unix timestamp in seconds)
-            end_time: Filter by window_end_time <= end_time (Unix timestamp in seconds)
-            cell_index: Filter by specific cell index
-            offset: Number of records to skip
-            limit: Maximum number of records to return
-            ip_src: Optional source IP filter
-
-        Returns:
-            List of dicts with metrics flattened to top-level keys
-        """
-        params = {
+        params: dict = {
             "start_time": start_time,
             "end_time": end_time,
-            "cell_index": cell_index,
             "offset": offset,
             "limit": limit,
-            "window_duration_seconds": window_duration_seconds,
         }
 
-        if ip_src == "*":
-            query = QueryCH.processed_all_ips
-        elif ip_src is not None:
-            query = QueryCH.processed_by_ip
-            params["ip_src"] = ip_src
-        else:
-            query = QueryCH.processed
+        query = (
+            "SELECT * FROM analytics.processed"
+            " WHERE toUnixTimestamp(window_start) >= {start_time:Int64}"
+            " AND toUnixTimestamp(window_end) <= {end_time:Int64}"
+        )
+
+        if snssai_sst is not None:
+            query += " AND snssai_sst = {snssai_sst:String}"
+            params["snssai_sst"] = snssai_sst
+
+        if dnn is not None:
+            query += " AND dnn = {dnn:String}"
+            params["dnn"] = dnn
+
+        if snssai_sd is not None:
+            query += " AND snssai_sd = {snssai_sd:String}"
+            params["snssai_sd"] = snssai_sd
+
+        if event is not None:
+            query += " AND event = {event:String}"
+            params["event"] = event
+
+        if window_duration_seconds is not None:
+            # Stored as Int32; use exact integer match
+            query += " AND window_duration_seconds = {window_duration_seconds:Int32}"
+            params["window_duration_seconds"] = int(window_duration_seconds)
+
+        # LIMIT 1 BY deduplicates rows with the same identity key
+        # (data-storage can receive the same window more than once on restart).
+        # Key excludes window_start so that LIMIT 1 BY actually collapses duplicates.
+        query += (
+            " ORDER BY window_end DESC"
+            " LIMIT 1 BY snssai_sst, snssai_sd, dnn, event, window_start"
+            " LIMIT {limit:Int32} OFFSET {offset:Int32}"
+        )
 
         with self._get_client() as client:
             result = client.query(query, parameters=params)
+            column_names = result.column_names
+            rows = [dict(zip(column_names, row)) for row in result.result_rows]
 
-        column_names = result.column_names
-        rows = [dict(zip(column_names, row)) for row in result.result_rows]
         for row in rows:
             metrics = row.pop("metrics", {})
             row.update(metrics)
@@ -185,19 +217,6 @@ class ClickHouseService:
         offset: int = 0,
         limit: int = 100,
     ) -> list[dict]:
-        """
-        Query decision data from ClickHouse.
-
-        Args:
-            start_time: Filter by timestamp >= start_time (Unix timestamp)
-            end_time: Filter by timestamp <= end_time (Unix timestamp)
-            cell_id: Optional cell_id filter (None = all cells)
-            offset: Number of records to skip
-            limit: Maximum number of records to return
-
-        Returns:
-            List of dicts with decision data (compressed)
-        """
         params = {
             "start_time": start_time,
             "end_time": end_time,
@@ -224,12 +243,8 @@ class ClickHouseService:
         compression_method: str,
         compressed_data: str,
     ) -> None:
-        """Write a single decision record to ClickHouse"""
         try:
-            # Auto-generate id based on existing count (simple approach)
-            # ClickHouse will handle this via rowNumberInAllBlocks() for better performance
             with self._get_client() as client:
-                # Get next ID by counting existing rows for this cell
                 count_query = "SELECT COUNT(*) FROM analytics.decisions WHERE cell_id = {cell_id:Int32}"
                 result = client.query(count_query, parameters={"cell_id": cell_id})
                 next_id = result.result_rows[0][0] + 1
