@@ -207,6 +207,10 @@ class ClickHouseService:
         for row in rows:
             metrics = row.pop("metrics", {})
             row.update(metrics)
+            if "window_start" in row:
+                row["window_start_time"] = row.pop("window_start")
+            if "window_end" in row:
+                row["window_end_time"] = row.pop("window_end")
         return rows
 
     def query_decisions(
