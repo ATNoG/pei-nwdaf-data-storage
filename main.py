@@ -5,6 +5,7 @@ from threading import Thread
 
 from fastapi import FastAPI
 
+from src.auth_middleware import AuthMiddleware
 from src.routers.v1 import v1_router
 from src.services.databases import ClickHouse, Influx
 from src.sink import KafkaSinkManager
@@ -146,6 +147,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(AuthMiddleware)
 app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
 
 if ENCRYPTION_ENABLED:
