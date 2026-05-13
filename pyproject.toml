@@ -14,6 +14,7 @@ dependencies = [
     "confluent-kafka==2.12.2",
     "cryptography>=42.0.5",
     "pyyaml>=6.0.0",
+    "PyJWT[crypto]>=2.8.0",
     "policy-client-sdk @ git+https://github.com/ATNoG/pei-nwdaf-policy.git#subdirectory=client_sdk",
     "pei-nwdaf-encryptor @ git+https://github.com/ATNoG/pei-nwdaf-encryptor.git",
 ]
