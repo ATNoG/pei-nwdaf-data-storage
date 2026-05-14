@@ -68,6 +68,9 @@ services:
       - POLICY_FAILOPEN=${POLICY_FAILOPEN}
       - POLICY_ROLENAME=storage
       - ENCRYPTION_ENABLED=${ENCRYPTION_ENABLED:-false}
+      - DEV_MODE=${DEV_MODE:-false}
+      - KEYCLOAK_URL=${KEYCLOAK_URL:-http://keycloak:8080/auth}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-aion}
     depends_on:
       clickhouse:
         condition: service_healthy
