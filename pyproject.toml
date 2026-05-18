@@ -8,7 +8,7 @@ dependencies = [
     "fastapi==0.121.3",
     "influxdb-client==1.49.0",
     "pydantic==2.12.4",
-    "python-dotenv==1.2.1",
+    "python-dotenv>=1.2.1",
     "clickhouse-connect==0.7.19",
     "uvicorn==0.34.0",
     "confluent-kafka==2.12.2",
@@ -21,11 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest==8.3.4",
-    "pytest-asyncio==0.25.2",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.2",
     "httpx==0.28.1",
-    "bandit==1.8.0",
-    "safety==3.7.0",
 ]
 
 [build-system]
