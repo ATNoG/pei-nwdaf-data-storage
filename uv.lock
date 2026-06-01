@@ -653,7 +653,7 @@ wheels = [
 [[package]]
 name = "policy-client-sdk"
 version = "1.0.0"
-source = { git = "https://github.com/ATNoG/pei-nwdaf-policy.git?subdirectory=client_sdk#44fb05c7f85133170bc3602e0409ad6e04bfb66f" }
+source = { git = "https://github.com/ATNoG/pei-nwdaf-policy.git?subdirectory=client_sdk#a6d66353dd2f88f64a8012939ee81827ab315ebf" }
 dependencies = [
     { name = "aiohttp" },
     { name = "cachetools" },
