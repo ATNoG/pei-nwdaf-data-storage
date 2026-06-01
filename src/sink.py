@@ -138,8 +138,15 @@ class KafkaSinkManager:
         return data
 
     async def start(self, *topics):
+        # Fixed, shared consumer group so multiple data-storage replicas join the
+        # SAME group and Kafka splits partitions among them (one message consumed
+        # once). Without it PyKafBridge picks a random group per process, so every
+        # replica consumes ALL partitions -> duplicate ClickHouse writes + no scaling.
         self.bridge = PyKafBridge(
-            *topics, hostname=self.kafka_host, port=self.kafka_port
+            *topics,
+            hostname=self.kafka_host,
+            port=self.kafka_port,
+            group_id=os.getenv("KAFKA_GROUP_ID", "data-storage"),
         )
 
         logger.info(f"Starting Kafka Sink Manager for topics: {topics}")
