@@ -26,6 +26,7 @@ def mock_clickhouse_sink(mock_logger):
     with patch('src.sink.ClickHouseSink') as mock:
         instance = mock.return_value
         instance.write = MagicMock(return_value=True)
+        instance.write_batch = MagicMock(return_value=True)
         yield instance
 
 
@@ -89,14 +90,16 @@ class TestKafkaSinkManager:
         }
 
         result = kafka_sink_manager.route_message(test_data)
+        kafka_sink_manager._flush_ch()
 
         assert result == test_data
-        mock_clickhouse_sink.write.assert_called_once()
+        mock_clickhouse_sink.write_batch.assert_called_once()
 
         # Verify the correct data was passed
-        call_args = mock_clickhouse_sink.write.call_args[0][0]
-        assert call_args["id"] == 1
-        assert call_args["processed_value"] == 42.5
+        batch = mock_clickhouse_sink.write_batch.call_args[0][0]
+        assert len(batch) == 1
+        assert batch[0]["id"] == 1
+        assert batch[0]["processed_value"] == 42.5
 
     def test_route_message_invalid_json(self, kafka_sink_manager, mock_influx_sink):
         """Test handling of invalid JSON in message content."""
@@ -140,8 +143,8 @@ class TestKafkaSinkManager:
         mock_influx_sink.write_batch.assert_called_once()
 
     def test_route_message_clickhouse_write_failure(self, kafka_sink_manager, mock_clickhouse_sink):
-        """Test handling of ClickHouse write failure."""
-        mock_clickhouse_sink.write.return_value = False
+        """Test handling of ClickHouse batch write failure."""
+        mock_clickhouse_sink.write_batch.return_value = False
 
         test_data = {
             "topic": "network.data.processed",
@@ -149,9 +152,10 @@ class TestKafkaSinkManager:
         }
 
         result = kafka_sink_manager.route_message(test_data)
+        kafka_sink_manager._flush_ch()
 
         assert result == test_data
-        mock_clickhouse_sink.write.assert_called_once()
+        mock_clickhouse_sink.write_batch.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_start_kafka_consumer(self, kafka_sink_manager):

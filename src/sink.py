@@ -33,6 +33,7 @@ class KafkaSinkManager:
         self._running = False
 
         self._influx_buffer: list[dict] = []
+        self._ch_buffer: list[dict] = []
         self._buffer_lock = threading.Lock()
         self._last_flush = time.monotonic()
 
@@ -42,13 +43,12 @@ class KafkaSinkManager:
     def _periodic_flush(self):
         while True:
             time.sleep(BATCH_TIMEOUT)
-            self._maybe_flush()
+            self._flush_all()
 
     def _flush_influx(self):
         with self._buffer_lock:
             batch = self._influx_buffer
             self._influx_buffer = []
-            self._last_flush = time.monotonic()
 
         if batch:
             success = self.influx_sink.write_batch(batch)
@@ -57,12 +57,30 @@ class KafkaSinkManager:
             else:
                 logger.error(f"Failed to flush {len(batch)} records to InfluxDB")
 
+    def _flush_ch(self):
+        with self._buffer_lock:
+            batch = self._ch_buffer
+            self._ch_buffer = []
+
+        if batch:
+            success = self.clickhouse_sink.write_batch(batch)
+            if success:
+                logger.info(f"Flushed {len(batch)} records to ClickHouse")
+            else:
+                logger.error(f"Failed to flush {len(batch)} records to ClickHouse")
+
+    def _flush_all(self):
+        self._flush_influx()
+        self._flush_ch()
+        self._last_flush = time.monotonic()
+
     def _maybe_flush(self):
         if (
             len(self._influx_buffer) >= BATCH_SIZE
+            or len(self._ch_buffer) >= BATCH_SIZE
             or (time.monotonic() - self._last_flush) >= BATCH_TIMEOUT
         ):
-            self._flush_influx()
+            self._flush_all()
 
     def route_message(self, data: dict) -> dict:
         topic: str = data["topic"]
@@ -84,12 +102,12 @@ class KafkaSinkManager:
                     self._influx_buffer.append(record)
             self._maybe_flush()
         elif topic == "network.data.processed":
-            tags = message.get("tags", {})
-            logger.info(f"Writing to ClickHouse: event={tags.get('event')} "
-                        f"sst={tags.get('snssai_sst')} dnn={tags.get('dnn')}")
-            success = self.clickhouse_sink.write(message)
-            if not success:
-                logger.error(f"Failed to write to ClickHouse")
+            # Buffer + batch-insert. ClickHouse hates 1-row inserts (one part per
+            # insert -> merge storm). Batching keeps part count + CPU sane.
+            records = message if isinstance(message, list) else [message]
+            with self._buffer_lock:
+                self._ch_buffer.extend(records)
+            self._maybe_flush()
         elif topic == "network.decisions":
             try:
                 # Message format: {"compression": "gzip", "data": "base64..."}
@@ -161,7 +179,7 @@ class KafkaSinkManager:
             await self.bridge._consumer_task
 
     async def stop(self):
-        self._flush_influx()
+        self._flush_all()
         if self.bridge is not None:
             await self.bridge.close()
             logger.info("Kafka Sink Manager stopped")
