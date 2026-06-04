@@ -6,10 +6,11 @@ from unittest.mock import MagicMock
 # Mock the utils.kmw module before importing
 class MockPyKafBridge:
     """Mock PyKafBridge for testing."""
-    def __init__(self, *topics, hostname=None, port=None):
+    def __init__(self, *topics, hostname=None, port=None, group_id=None):
         self.topics = topics
         self.hostname = hostname
         self.port = port
+        self.group_id = group_id
         self._closed = False
         self._callbacks = {}
         self._consumer_task = None  # Added for consumer task tracking
