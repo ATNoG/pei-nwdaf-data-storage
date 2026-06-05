@@ -40,6 +40,9 @@ class KafkaSinkManager:
         self._flush_thread = threading.Thread(target=self._periodic_flush, daemon=True)
         self._flush_thread.start()
 
+        self._influx_fields: set[str] = set()
+        self._clickhouse_fields: set[str] = set()
+
     def _periodic_flush(self):
         while True:
             time.sleep(BATCH_TIMEOUT)
@@ -82,6 +85,24 @@ class KafkaSinkManager:
         ):
             self._flush_all()
 
+    def _reregister(self) -> None:
+        all_fields = sorted(self._influx_fields | self._clickhouse_fields)
+        try:
+            self.policy_client.register_component(
+                component_type="storage",
+                role=os.getenv("POLICY_ROLENAME", "Storage"),
+                data_columns=all_fields,
+                auto_create_attributes=False,
+                allowed_fields={
+                    "data-storage:influx": sorted(self._influx_fields),
+                    "data-storage:clickhouse": sorted(self._clickhouse_fields),
+                    "*": all_fields,
+                },
+            )
+            logger.info(f"Re-registered with Policy Service ({len(all_fields)} fields discovered)")
+        except Exception as e:
+            logger.warning(f"Failed to re-register with Policy Service: {e}")
+
     def route_message(self, data: dict) -> dict:
         topic: str = data["topic"]
         message_str: str = data["content"]
@@ -97,17 +118,31 @@ class KafkaSinkManager:
         if topic == "network.data.ingested":
             # Raw data -> InfluxDB
             records = message if isinstance(message, list) else [message]
+            prev = len(self._influx_fields)
             for record in records:
+                self._influx_fields.update(record.get("tags", {}).keys())
+                self._influx_fields.update(record.get("metrics", {}).keys())
                 with self._buffer_lock:
                     self._influx_buffer.append(record)
             self._maybe_flush()
+            if self.policy_client and len(self._influx_fields) > prev:
+                self._reregister()
         elif topic == "network.data.processed":
             # Buffer + batch-insert. ClickHouse hates 1-row inserts (one part per
             # insert -> merge storm). Batching keeps part count + CPU sane.
             records = message if isinstance(message, list) else [message]
+
+            prev = len(self._clickhouse_fields)
+            for record in records:
+                self._clickhouse_fields.update(record.get("tags", {}).keys())
+                self._clickhouse_fields.update(record.get("metrics", {}).keys())
+
             with self._buffer_lock:
                 self._ch_buffer.extend(records)
             self._maybe_flush()
+
+            if self.policy_client and len(self._clickhouse_fields) > prev:
+                self._reregister()
         elif topic == "network.decisions":
             try:
                 # Message format: {"compression": "gzip", "data": "base64..."}
