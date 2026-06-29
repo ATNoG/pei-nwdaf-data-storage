@@ -87,7 +87,7 @@ def get_processed_data(
                 results = filtered
 
         if x_public_key:
-            plaintext = json.dumps(results).encode()
+            plaintext = json.dumps(results, default=str).encode()
             encrypted = ecies_encrypt(plaintext, x_public_key)
             logger.info(
                 "[ECIES] encrypted %d records → %d bytes, blob[:5]=%s",
