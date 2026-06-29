@@ -149,7 +149,3 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(AuthMiddleware)
 app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
-
-if ENCRYPTION_ENABLED:
-    from encryptor.server.integration import integrate_encryptor
-    integrate_encryptor(app)
