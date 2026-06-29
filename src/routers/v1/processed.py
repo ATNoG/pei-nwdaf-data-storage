@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 POLICY_ENABLED = os.getenv("POLICY_ENABLED", "false").lower() == "true"
-ENCRYPTION_ENABLED = os.getenv("ENCRYPTION_ENABLED", "false").lower() == "true"
 
 
 @router.get("/fields")
@@ -51,9 +50,6 @@ def get_processed_data(
     (ueIpv4Addr, supi, etc.) are returned in the ue_tags field of each row.
     Metric stats are flattened: thrputUl_mbps_mean, thrputUl_mbps_min, etc.
     """
-    if ENCRYPTION_ENABLED and not x_public_key:
-        raise HTTPException(status_code=400, detail="X-Public-Key header required when encryption is enabled")
-
     try:
         results = ClickHouse.service.query_processed(
             start_time=start_time,
@@ -93,6 +89,10 @@ def get_processed_data(
         if x_public_key:
             plaintext = json.dumps(results).encode()
             encrypted = ecies_encrypt(plaintext, x_public_key)
+            logger.info(
+                "[ECIES] encrypted %d records → %d bytes, blob[:5]=%s",
+                len(results), len(encrypted), encrypted[:5].hex(),
+            )
             return Response(
                 content=encrypted,
                 media_type="application/octet-stream",
