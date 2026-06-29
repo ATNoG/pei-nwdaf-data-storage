@@ -93,7 +93,11 @@ def get_processed_data(
         if x_public_key:
             plaintext = json.dumps(results).encode()
             encrypted = ecies_encrypt(plaintext, x_public_key)
-            return Response(content=encrypted, media_type="application/octet-stream")
+            return Response(
+                content=encrypted,
+                media_type="application/octet-stream",
+                headers={"X-Record-Count": str(len(results))},
+            )
 
         return results
 
