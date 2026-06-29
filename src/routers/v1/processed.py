@@ -99,7 +99,10 @@ def get_processed_data(
                 headers={"X-Record-Count": str(len(results))},
             )
 
-        return results
+        return Response(
+            content=json.dumps(results, default=str),
+            media_type="application/json",
+        )
 
     except HTTPException:
         raise
