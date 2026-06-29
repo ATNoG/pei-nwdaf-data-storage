@@ -1,8 +1,11 @@
+import json
 import logging
 import os
 
-from fastapi import APIRouter, HTTPException, Query, Header, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi.responses import Response
 
+from src.ecies import ecies_encrypt
 from src.services.databases import ClickHouse
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,7 @@ def get_processed_data(
     offset: int = Query(0, ge=0, description="Records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Max records to return"),
     x_component_id: str = Header(None, alias="X-Component-ID"),
+    x_public_key: str = Header(None, alias="X-Public-Key"),
 ):
     """
     Query processed analytics windows from ClickHouse.
@@ -82,7 +86,25 @@ def get_processed_data(
                             logger.warning(f"Policy failed for row, blocking (fail_closed): {e}")
                 results = filtered
 
-        return results
+        if x_public_key:
+            plaintext = json.dumps(results, default=str).encode()
+            encrypted = ecies_encrypt(plaintext, x_public_key)
+            logger.info(
+                "[ECIES] encrypted %d records → %d bytes, blob[:5]=%s",
+                len(results), len(encrypted), encrypted[:5].hex(),
+            )
+            return Response(
+                content=encrypted,
+                media_type="application/octet-stream",
+                headers={"X-Record-Count": str(len(results))},
+            )
 
+        return Response(
+            content=json.dumps(results, default=str),
+            media_type="application/json",
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying processed data: {str(e)}")

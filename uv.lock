@@ -584,7 +584,6 @@ dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "influxdb-client" },
-    { name = "pei-nwdaf-encryptor" },
     { name = "policy-client-sdk" },
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -608,7 +607,6 @@ requires-dist = [
     { name = "fastapi", specifier = "==0.121.3" },
     { name = "httpx", marker = "extra == 'dev'", specifier = "==0.28.1" },
     { name = "influxdb-client", specifier = "==1.49.0" },
-    { name = "pei-nwdaf-encryptor", git = "https://github.com/ATNoG/pei-nwdaf-encryptor.git" },
     { name = "policy-client-sdk", git = "https://github.com/ATNoG/pei-nwdaf-policy.git?subdirectory=client_sdk" },
     { name = "pydantic", specifier = "==2.12.4" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8.0" },
@@ -627,18 +625,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/f1/e7a6dd94a8d4a5626c03e4e99c87f241ba9e350cd9e6d75123f992427270/packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661", size = 228134, upload-time = "2026-04-24T20:15:23.917Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e", size = 100195, upload-time = "2026-04-24T20:15:22.081Z" },
-]
-
-[[package]]
-name = "pei-nwdaf-encryptor"
-version = "0.1.0"
-source = { git = "https://github.com/ATNoG/pei-nwdaf-encryptor.git#86f110f86d8ca924d6050e4a09182c5712b6558a" }
-dependencies = [
-    { name = "cryptography" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "uvicorn" },
 ]
 
 [[package]]
